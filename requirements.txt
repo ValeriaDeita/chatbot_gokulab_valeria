@@ -1,0 +1,12 @@
+flask
+flask-cors
+pymongo
+groq
+python-dotenv
+pandas
+openpyxl
+scikit-learn
+nltk
+gdown
+vaderSentiment
+
