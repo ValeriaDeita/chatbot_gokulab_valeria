@@ -1,0 +1,26 @@
+[{
+  "_id": {
+    "$oid": "69ec30683ce4a991ec3c64f0"
+  },
+  "nombre_academia": "Goku Lab",
+  "formas_pago": [
+    "efectivo",
+    "tarjeta",
+    "transferencia"
+  ],
+  "abonos": true,
+  "detalle_abonos": "Se pueden dar abonos en la mensualidad",
+  "masterclass": {
+    "disponible": true,
+    "costo": "Gratuita",
+    "descripcion": "Clase de prueba gratuita antes de inscribirte"
+  },
+  "mensaje_bienvenida": "¡Hola! Bienvenido a Goku Lab, ¿en qué te puedo ayudar?",
+  "mensaje_despedida": "¡Hasta luego! Fue un placer ayudarte",
+  "whatsapp": "+52 15612668168",
+  "telefono": "+52 15612668168",
+  "correo": "algorithmicsnc@outlook.com",
+  "direccion": "Av. Vía Adolfo López Mateos 201-local 418, Sta Cruz Acatlán, 53150 Naucalpan de Juárez, Méx.",
+  "referencias": "Dentro de Plaza San Mateo, misma donde están Sodimac y MEGA Soriana. Por el área del fast food, segundo piso",
+  "google_maps": "https://maps.app.goo.gl/HQgL1s7dkBHzBMEeA"
+}]

@@ -1,0 +1,199 @@
+[{
+  "_id": {
+    "$oid": "69ec238d3ce4a991ec3c64b9"
+  },
+  "idCurso": "CUR015",
+  "nombreCurso": "Robótica 26-1 (torneo)",
+  "horarios": [
+    {
+      "día": "Lunes",
+      "hora_inicio": "16:00",
+      "duración_min_clase": 90
+    },
+    {
+      "día": "Miércoles",
+      "hora_inicio": "16:30",
+      "duración_min_clase": 90
+    },
+    {
+      "día": "Sábado",
+      "hora_inicio": "11:00",
+      "duración_min_clase": 90
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "69ec27533ce4a991ec3c64bf"
+  },
+  "idCurso": "CUR001",
+  "nombreCurso": "Programación Visual",
+  "horarios": [
+    {
+      "día": "Lunes",
+      "hora_inicio": [
+        "16:00",
+        "17:00",
+        "18:00"
+      ],
+      "duración_min_clase": 90
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "69ec28013ce4a991ec3c64c5"
+  },
+  "idCurso": "CUR006",
+  "nombreCurso": "Diseño de Videojuegos (Roblox)",
+  "horarios": [
+    {
+      "día": "Miércoles",
+      "hora_inicio": [
+        "16:00",
+        "17:00",
+        "18:00"
+      ],
+      "duración_min_clase": 90
+    },
+    {
+      "día": "Jueves",
+      "hora_inicio": "11:00",
+      "duración_min_clase": 90
+    },
+    {
+      "día": "Viernes",
+      "hora_inicio": "09:00",
+      "duración_min_clase": 90
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "69ec287d3ce4a991ec3c64cc"
+  },
+  "idCurso": "CUR010",
+  "nombreCurso": "Diseño Gráfico",
+  "horarios": [
+    {
+      "día": "Lunes",
+      "hora_inicio": "17:00",
+      "duración_min_clase": 90
+    },
+    {
+      "día": "Sábado",
+      "hora_inicio": "11:00",
+      "duración_min_clase": 90
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "69ec29003ce4a991ec3c64d0"
+  },
+  "idCurso": "CUR007",
+  "nombreCurso": "Diseño de Videojuegos (Unity)",
+  "horarios": [
+    {
+      "día": "Miércoles",
+      "hora_inicio": [
+        "16:00",
+        "17:00",
+        "18:00"
+      ],
+      "duración_min_clase": 90
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "69ec29b73ce4a991ec3c64d8"
+  },
+  "idCurso": "CUR003",
+  "nombreCurso": "Python Star",
+  "horarios": [
+    {
+      "día": "Lunes",
+      "hora_inicio": [
+        "16:00",
+        "16:30"
+      ],
+      "duración_min_clase": 90
+    },
+    {
+      "día": "Miércoles",
+      "hora_inicio": "16:00",
+      "duración_min_clase": 90
+    },
+    {
+      "día": "Viernes",
+      "hora_inicio": "16:00",
+      "duración_min_clase": 90
+    },
+    {
+      "día": "Sábado",
+      "hora_inicio": [
+        "11:00",
+        "11:30"
+      ]
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "69ec2aa93ce4a991ec3c64dd"
+  },
+  "idCurso": "CUR020",
+  "nombreCurso": "Diseño Web",
+  "horarios": [
+    {
+      "día": "Miércoles",
+      "hora_inicio": [
+        "16:00",
+        "17:00",
+        "18:00"
+      ],
+      "duración_min_clase": 90
+    }
+  ]
+},
+{
+  "_id": {
+    "$oid": "69ec2bd43ce4a991ec3c64e2"
+  },
+  "idCurso": "CUR011",
+  "nombreCurso": "Matemáticas",
+  "horarios": null,
+  "sobre_agenda": true,
+  "nota": "Horario a coordinar directamente con la academia"
+},
+{
+  "_id": {
+    "$oid": "69ec2bfd3ce4a991ec3c64e5"
+  },
+  "idCurso": "CUR012",
+  "nombreCurso": "Inglés",
+  "horarios": null,
+  "sobre_agenda": true,
+  "nota": "Horario a coordinar directamente con la academia"
+},
+{
+  "_id": {
+    "$oid": "69ec2e643ce4a991ec3c64e8"
+  },
+  "idCurso": "CUR019",
+  "nombreCurso": "Inteligencia artificial para adultos",
+  "horarios": null,
+  "sobre_agenda": true,
+  "nota": "Horario a coordinar directamente con la academia"
+},
+{
+  "_id": {
+    "$oid": "69ec2e893ce4a991ec3c64eb"
+  },
+  "idCurso": "CUR013",
+  "nombreCurso": "Emprendimiento",
+  "horarios": null,
+  "sobre_agenda": true,
+  "nota": "Horario a coordinar directamente con la academia"
+}]

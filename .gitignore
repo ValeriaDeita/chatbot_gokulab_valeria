@@ -1,0 +1,5 @@
+.env
+modelo_intents.pkl
+intencione.xlsx
+__pycache__/
+*.pyc
