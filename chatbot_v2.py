@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flask_cors import CORS
+from flask import Flask, request, jsonify, send_file
 
 
 
@@ -398,6 +399,9 @@ RESPUESTA_FALLBACK = (
 # ─────────────────────────────────────────────────────────────
 app = Flask(__name__)
 CORS(app)
+@app.route("/")
+def index():
+    return send_file("chat.html")
 
 
 @app.route("/chat", methods=["POST"])
@@ -542,3 +546,5 @@ def health():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+    
