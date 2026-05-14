@@ -11,5 +11,5 @@ gdown
 vaderSentiment
 pypdf
 faiss-cpu
-sentence-transformer
+sentence-transformers
 
