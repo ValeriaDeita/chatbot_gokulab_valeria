@@ -9,4 +9,7 @@ scikit-learn
 nltk
 gdown
 vaderSentiment
+pypdf
+faiss-cpu
+sentence-transformer
 

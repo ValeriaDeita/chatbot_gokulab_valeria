@@ -18,7 +18,10 @@ from datetime import datetime
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flask_cors import CORS
 from flask import Flask, request, jsonify, send_file
-
+from pypdf import PdfReader
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
 
 
 # ─────────────────────────────────────────────────────────────
@@ -34,21 +37,84 @@ try:
     client_mongo.server_info()  # Verifica conexión al arrancar
     db = client_mongo["chatbot_Goku_lab"]
     coleccion = db["conversaciones"]
-    print("✅ MongoDB conectado.")
+    print("MongoDB conectado.")
 except Exception as e:
-    print(f"❌ Error conectando a MongoDB: {e}")
+    print(f" Error conectando a MongoDB: {e}")
     db = None
     coleccion = None
 
 try:
     client_groq = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    print("✅ Groq conectado.")
+    print(" Groq conectado.")
 except Exception as e:
-    print(f"❌ Error conectando a Groq: {e}")
+    print(f"Error conectando a Groq: {e}")
     client_groq = None
 
 # ── Analizador de sentimiento ─────────────────────────────────
 analizador_sentimiento = SentimentIntensityAnalyzer()
+
+
+# ─────────────────────────────────────────────────────────────
+#  RAG — FALLBACK CON PDF
+# ─────────────────────────────────────────────────────────────
+PDF_PATH = "gokulab_info.pdf"
+CHUNK_SIZE = 300        # caracteres por fragmento
+CHUNK_OVERLAP = 50      # solapamiento entre fragmentos
+
+# Modelo de embeddings (se descarga la primera vez, ~90MB)
+embedding_model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+
+rag_chunks = []
+rag_index = None
+
+def cargar_pdf_en_rag(pdf_path):
+    """Lee el PDF, lo parte en chunks y construye el índice FAISS."""
+    global rag_chunks, rag_index
+
+    if not os.path.exists(pdf_path):
+        print(f"⚠️  PDF para RAG no encontrado en: {pdf_path}")
+        return
+
+    # 1. Extraer texto del PDF
+    reader = PdfReader(pdf_path)
+    texto_completo = ""
+    for page in reader.pages:
+        texto_completo += page.extract_text() + "\n"
+
+    # 2. Partir en chunks con solapamiento
+    chunks = []
+    inicio = 0
+    while inicio < len(texto_completo):
+        fin = inicio + CHUNK_SIZE
+        chunks.append(texto_completo[inicio:fin].strip())
+        inicio += CHUNK_SIZE - CHUNK_OVERLAP
+
+    rag_chunks = [c for c in chunks if len(c) > 30]  # filtrar chunks vacíos
+
+    # 3. Generar embeddings y construir índice FAISS
+    embeddings = embedding_model.encode(rag_chunks, show_progress_bar=False)
+    embeddings = np.array(embeddings).astype("float32")
+
+    dimension = embeddings.shape[1]
+    rag_index = faiss.IndexFlatL2(dimension)
+    rag_index.add(embeddings)
+
+    print(f"✅ RAG cargado: {len(rag_chunks)} fragmentos del PDF.")
+
+def buscar_en_rag(pregunta, top_k=3):
+    """Busca los fragmentos más relevantes del PDF para la pregunta."""
+    if rag_index is None or not rag_chunks:
+        return None
+
+    embedding_pregunta = embedding_model.encode([pregunta]).astype("float32")
+    _, indices = rag_index.search(embedding_pregunta, top_k)
+
+    fragmentos = [rag_chunks[i] for i in indices[0] if i < len(rag_chunks)]
+    return "\n\n".join(fragmentos) if fragmentos else None
+
+# Cargar el PDF al arrancar
+cargar_pdf_en_rag(PDF_PATH)
+
 
 # ─────────────────────────────────────────────────────────────
 #  MODELO: CARGAR O ENTRENAR
@@ -312,7 +378,7 @@ def construir_prompt(intencion, confianza, datos, config, sentimiento):
         "Desconocido": (
             f"No se pudo entender con claridad la consulta del usuario (confianza baja: {confianza:.0%}). "
             f"Discúlpate amablemente, dile que no entendiste bien su pregunta y pídele que la reformule. "
-            f"Si persiste la duda, invítalo a escribir directamente a WhatsApp: {whatsapp}."
+            f"Si persiste la duda, invítalo a escribir nuevamente."
         ),
         "Consultar_Cursos": (
             "El usuario pregunta por los cursos disponibles. "
@@ -376,27 +442,53 @@ DATOS DISPONIBLES: {datos}
 
 REGLAS IMPORTANTES:
 - No inventes información que no esté en los datos proporcionados.
-- Si no tienes el dato exacto, invita al usuario a preguntar directamente al WhatsApp: {whatsapp}.
 - No menciones que eres una IA a menos que el usuario te lo pregunte directamente.
-- Sé conciso: máximo 3-4 oraciones, salvo que la información requiera más detalle.
-- No uses listas con viñetas; redacta de forma conversacional.
+- Sé conciso: máximo 2-3 oraciones, salvo que la información requiera más detalle.
+- No uses listas con viñetas; redacta de forma conversacional, pero sé conciso.
 - No repitas el saludo si ya lo hiciste antes en la conversación.
+- Termina siempre con una pregunta para seguir la conversación y convencer al usuario.
 """.strip()
 
+def construir_prompt_rag(contexto, config, sentimiento):
+    """Prompt especial cuando se usa RAG como fallback."""
+    nombre_academia = config.get("nombre_academia", "Goku Lab")
+    whatsapp = config.get("whatsapp", "")
 
-# ─────────────────────────────────────────────────────────────
-#  RESPUESTA DE EMERGENCIA (cuando Groq falla)
-# ─────────────────────────────────────────────────────────────
+    tono_map = {
+        "negativo": "El usuario parece frustrado. Responde con mucha empatía y paciencia.",
+        "positivo": "El usuario está animado. Mantén esa energía positiva.",
+        "neutral":  "Responde de forma amable, clara y profesional.",
+    }
+
+    return f"""
+Eres un asistente virtual amable de la academia {nombre_academia}.
+Siempre respondes en español mexicano, de forma natural y concisa.
+
+TONO: {tono_map.get(sentimiento, tono_map["neutral"])}
+
+TAREA: El usuario hizo una pregunta que no pudo clasificarse con certeza.
+Usa únicamente la siguiente información de la academia para responder:
+
+INFORMACIÓN DISPONIBLE:
+{contexto}
+
+REGLAS IMPORTANTES:
+- Responde solo con lo que está en la información proporcionada.
+- Si la información no es suficiente para responder, dile amablemente que no tienes ese dato
+  e invítalo a contactar directamente por WhatsApp: {whatsapp}.
+- No menciones que eres una IA a menos que te lo pregunten.
+- Sé conciso y termina con una pregunta para continuar la conversación.
+""".strip()
+
+#respuesta cuando groq falla
 
 RESPUESTA_FALLBACK = (
     "En este momento tengo un problema técnico. "
-    "Por favor, intenta de nuevo en un momento o escríbenos directamente por WhatsApp. 🙏"
+    "Por favor, intenta de nuevo en un momento o llamanos directamente por WhatsApp. 🙏"
 )
 
 
-# ─────────────────────────────────────────────────────────────
-#  FLASK APP
-# ─────────────────────────────────────────────────────────────
+
 app = Flask(__name__)
 CORS(app)
 @app.route("/")
@@ -429,8 +521,16 @@ def chat():
         # ── 3. Clasificación de intención ─────────────────────
         intencion, confianza = predecir_intent(mensaje)
 
-        # ── 4. Consulta a MongoDB ─────────────────────────────
-        datos = obtener_datos_por_intencion(intencion)
+        # ── 4. Consulta a MongoDB o RAG según confianza ───────
+        usar_rag = intencion == "Desconocido"
+        contexto_rag = None
+
+        if usar_rag:
+            contexto_rag = buscar_en_rag(mensaje)
+            datos = obtener_datos_por_intencion("Desconocido")
+        else:
+            datos = obtener_datos_por_intencion(intencion)
+
         config = datos.get("config") or {}
 
         # ── 5. Historial reciente del usuario (últimos 5) ─────
@@ -446,7 +546,10 @@ def chat():
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
         # ── 6. Construcción del prompt dinámico ───────────────
-        prompt_sistema = construir_prompt(intencion, confianza, datos, config, sentimiento)
+        if usar_rag and contexto_rag:
+            prompt_sistema = construir_prompt_rag(contexto_rag, config, sentimiento)
+        else:
+            prompt_sistema = construir_prompt(intencion, confianza, datos, config, sentimiento)
 
         # ── 7. Llamada a Groq ─────────────────────────────────
         if client_groq is None:
@@ -478,6 +581,7 @@ def chat():
                     "confianza":   round(confianza, 4),
                     "sentimiento": sentimiento,
                     "score_sent":  round(score_sentimiento, 4),
+                    "uso_rag":     usar_rag,   # ← solo agrega esta línea
                     "respuesta":   respuesta,
                     "timestamp":   datetime.now(),
                 })
@@ -521,7 +625,7 @@ def retrain():
             os.remove(MODEL_PATH)
 
         mejor_modelo, vectorizer = entrenar_y_guardar()
-        return jsonify({"status": "ok", "mensaje": "Modelo reentrenado exitosamente ✅"}), 200
+        return jsonify({"status": "ok", "mensaje": "Modelo reentrenado exitosamente"}), 200
     except Exception as e:
         return jsonify({"status": "error", "mensaje": str(e)}), 500
 
