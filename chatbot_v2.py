@@ -3,6 +3,7 @@ import re
 import pickle
 import unicodedata
 import string
+import threading
 import gdown
 import pandas as pd
 import nltk
@@ -10,19 +11,17 @@ from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from pymongo import MongoClient
 from groq import Groq
 from dotenv import load_dotenv
 from datetime import datetime
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flask_cors import CORS
-from flask import Flask, request, jsonify, send_file
 from pypdf import PdfReader
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
-
 
 # ─────────────────────────────────────────────────────────────
 #  SETUP INICIAL
@@ -34,38 +33,37 @@ load_dotenv()
 # ── Conexiones ────────────────────────────────────────────────
 try:
     client_mongo = MongoClient(os.getenv("MONGO_URI"), serverSelectionTimeoutMS=5000)
-    client_mongo.server_info()  # Verifica conexión al arrancar
+    client_mongo.server_info()
     db = client_mongo["chatbot_Goku_lab"]
     coleccion = db["conversaciones"]
-    print("MongoDB conectado.")
+    print("✅ MongoDB conectado.")
 except Exception as e:
-    print(f" Error conectando a MongoDB: {e}")
+    print(f"❌ Error conectando a MongoDB: {e}")
     db = None
     coleccion = None
 
 try:
     client_groq = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    print(" Groq conectado.")
+    print("✅ Groq conectado.")
 except Exception as e:
-    print(f"Error conectando a Groq: {e}")
+    print(f"❌ Error conectando a Groq: {e}")
     client_groq = None
 
 # ── Analizador de sentimiento ─────────────────────────────────
 analizador_sentimiento = SentimentIntensityAnalyzer()
 
-
 # ─────────────────────────────────────────────────────────────
 #  RAG — FALLBACK CON PDF
 # ─────────────────────────────────────────────────────────────
 PDF_PATH = "gokulab_info.pdf"
-CHUNK_SIZE = 300        # caracteres por fragmento
-CHUNK_OVERLAP = 50      # solapamiento entre fragmentos
+CHUNK_SIZE = 300
+CHUNK_OVERLAP = 50
 
-# Modelo de embeddings (se descarga la primera vez, ~90MB)
-embedding_model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
-
+# ← embedding_model arranca en None, se carga en hilo separado
+embedding_model = None
 rag_chunks = []
 rag_index = None
+
 
 def cargar_pdf_en_rag(pdf_path):
     """Lee el PDF, lo parte en chunks y construye el índice FAISS."""
@@ -75,13 +73,11 @@ def cargar_pdf_en_rag(pdf_path):
         print(f"⚠️  PDF para RAG no encontrado en: {pdf_path}")
         return
 
-    # 1. Extraer texto del PDF
     reader = PdfReader(pdf_path)
     texto_completo = ""
     for page in reader.pages:
         texto_completo += page.extract_text() + "\n"
 
-    # 2. Partir en chunks con solapamiento
     chunks = []
     inicio = 0
     while inicio < len(texto_completo):
@@ -89,9 +85,8 @@ def cargar_pdf_en_rag(pdf_path):
         chunks.append(texto_completo[inicio:fin].strip())
         inicio += CHUNK_SIZE - CHUNK_OVERLAP
 
-    rag_chunks = [c for c in chunks if len(c) > 30]  # filtrar chunks vacíos
+    rag_chunks = [c for c in chunks if len(c) > 30]
 
-    # 3. Generar embeddings y construir índice FAISS
     embeddings = embedding_model.encode(rag_chunks, show_progress_bar=False)
     embeddings = np.array(embeddings).astype("float32")
 
@@ -101,9 +96,10 @@ def cargar_pdf_en_rag(pdf_path):
 
     print(f"✅ RAG cargado: {len(rag_chunks)} fragmentos del PDF.")
 
+
 def buscar_en_rag(pregunta, top_k=3):
     """Busca los fragmentos más relevantes del PDF para la pregunta."""
-    if rag_index is None or not rag_chunks:
+    if embedding_model is None or rag_index is None or not rag_chunks:
         return None
 
     embedding_pregunta = embedding_model.encode([pregunta]).astype("float32")
@@ -112,9 +108,20 @@ def buscar_en_rag(pregunta, top_k=3):
     fragmentos = [rag_chunks[i] for i in indices[0] if i < len(rag_chunks)]
     return "\n\n".join(fragmentos) if fragmentos else None
 
-# Cargar el PDF al arrancar
-cargar_pdf_en_rag(PDF_PATH)
 
+def inicializar_rag():
+    """Carga el modelo de embeddings y el PDF en segundo plano."""
+    global embedding_model
+    try:
+        print("⚙️  Cargando modelo de embeddings en segundo plano...")
+        embedding_model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
+        cargar_pdf_en_rag(PDF_PATH)
+    except Exception as e:
+        print(f"❌ Error inicializando RAG: {e}")
+
+
+# ← Flask arranca primero, el RAG carga en segundo plano
+threading.Thread(target=inicializar_rag, daemon=True).start()
 
 # ─────────────────────────────────────────────────────────────
 #  MODELO: CARGAR O ENTRENAR
@@ -196,7 +203,6 @@ def cargar_modelo():
     return entrenar_y_guardar()
 
 
-# ── Cargar modelo al arrancar (con manejo de error) ───────────
 try:
     mejor_modelo, vectorizer = cargar_modelo()
 except Exception as e:
@@ -209,10 +215,7 @@ except Exception as e:
 # ─────────────────────────────────────────────────────────────
 
 def predecir_intent(texto, umbral=0.5):
-    """
-    Clasifica el texto. Si la confianza es menor al umbral,
-    devuelve 'Desconocido' para activar la respuesta de fallback.
-    """
+    """Clasifica el texto. Si confianza < umbral devuelve 'Desconocido'."""
     if mejor_modelo is None or vectorizer is None:
         return "Desconocido", 0.0
     vector = vectorizer.transform([limpiar_texto(texto)])
@@ -232,56 +235,25 @@ def obtener_datos_por_intencion(intencion):
 
     if intencion == "Consultar_Cursos":
         return {"cursos": list(db["cursos"].find({}, {"_id": 0})), "config": config}
-
     elif intencion == "Consultar_Costos":
-        return {
-            "cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "precio": 1, "moneda": 1})),
-            "config": config,
-        }
-
+        return {"cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "precio": 1, "moneda": 1})), "config": config}
     elif intencion == "Consultar_Horarios":
         return {"horarios": list(db["horarios"].find({}, {"_id": 0})), "config": config}
-
     elif intencion == "Consultar_Certificacion":
         return {"certificacion": config.get("certificacion"), "config": config}
-
     elif intencion == "Consultar_ClaseDemo":
         return {"masterclass": config.get("masterclass"), "config": config}
-
     elif intencion == "Consultar_FormasPago":
-        return {
-            "pagos": config.get("formas_pago"),
-            "abonos": config.get("detalle_abonos"),
-            "config": config,
-        }
-
+        return {"pagos": config.get("formas_pago"), "abonos": config.get("detalle_abonos"), "config": config}
     elif intencion == "Consultar_Modalidad":
-        return {
-            "cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "modalidad": 1})),
-            "config": config,
-        }
-
+        return {"cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "modalidad": 1})), "config": config}
     elif intencion == "Consultar_RequisitosEdad":
-        return {
-            "cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "edad_dirigida": 1})),
-            "config": config,
-        }
-
+        return {"cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "edad_dirigida": 1})), "config": config}
     elif intencion == "Consultar_Duracion":
-        return {
-            "cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "duracion_min_por_clase": 1})),
-            "config": config,
-        }
-
+        return {"cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "duracion_min_por_clase": 1})), "config": config}
     elif intencion == "Consultar_Ubicacion":
-        return {
-            "direccion": config.get("direccion"),
-            "referencias": config.get("referencias"),
-            "link_maps": config.get("link_maps"),
-            "config": config,
-        }
+        return {"direccion": config.get("direccion"), "referencias": config.get("referencias"), "link_maps": config.get("link_maps"), "config": config}
 
-    # Saludo, Despedida, Desconocido → solo config (el prompt se encarga)
     return {"config": config}
 
 
@@ -290,14 +262,9 @@ def obtener_datos_por_intencion(intencion):
 # ─────────────────────────────────────────────────────────────
 
 def analizar_sentimiento(texto):
-    """
-    Usa VADER para detectar el tono emocional del mensaje.
-    Funciona con español básico (positivo/negativo/neutral).
-    Retorna: (etiqueta, score_compound)
-    """
+    """Usa VADER para detectar el tono emocional del mensaje."""
     scores = analizador_sentimiento.polarity_scores(texto)
     compound = scores["compound"]
-
     if compound <= -0.35:
         return "negativo", compound
     elif compound >= 0.35:
@@ -311,22 +278,14 @@ def analizar_sentimiento(texto):
 # ─────────────────────────────────────────────────────────────
 
 def validar_entrada(mensaje):
-    """
-    Verifica que el mensaje sea procesable.
-    Retorna: (es_valido: bool, motivo: str | None)
-    """
+    """Verifica que el mensaje sea procesable."""
     if not mensaje or not mensaje.strip():
         return False, "empty"
-
-    # Quitar emojis y símbolos; si no queda texto real, rechazar
     texto_limpio = re.sub(r"[^\w\s]", "", mensaje, flags=re.UNICODE).strip()
     if len(texto_limpio) < 2:
         return False, "only_symbols"
-
-    # Mensaje demasiado corto para clasificar con sentido
     if len(mensaje.strip()) < 3:
         return False, "too_short"
-
     return True, None
 
 
@@ -338,103 +297,46 @@ RESPUESTAS_INVALIDAS = {
 
 
 # ─────────────────────────────────────────────────────────────
-#  CONSTRUCCIÓN DE PROMPT DINÁMICO
+#  CONSTRUCCIÓN DE PROMPTS
 # ─────────────────────────────────────────────────────────────
 
 def construir_prompt(intencion, confianza, datos, config, sentimiento):
-    """
-    Genera el system prompt para Groq adaptando:
-    - La intención detectada (qué responder)
-    - El sentimiento del usuario (cómo responderlo)
-    """
+    """Prompt dinámico según intención y sentimiento."""
     nombre_academia = config.get("nombre_academia", "Goku Lab")
     whatsapp = config.get("whatsapp", "")
 
-    # ── Tono según sentimiento ────────────────────────────────
     tono_map = {
-        "negativo": (
-            "El usuario parece frustrado o molesto. "
-            "Responde con mucha empatía, valida su sentimiento y sé especialmente paciente. "
-            "No uses signos de exclamación excesivos."
-        ),
-        "positivo": (
-            "El usuario está animado o entusiasmado. "
-            "Mantén esa energía positiva y responde con entusiasmo."
-        ),
-        "neutral": "Responde de forma amable, clara y profesional.",
+        "negativo": "El usuario parece frustrado o molesto. Responde con mucha empatía, valida su sentimiento y sé especialmente paciente. No uses signos de exclamación excesivos.",
+        "positivo": "El usuario está animado o entusiasmado. Mantén esa energía positiva y responde con entusiasmo.",
+        "neutral":  "Responde de forma amable, clara y profesional.",
     }
-    instruccion_tono = tono_map.get(sentimiento, tono_map["neutral"])
 
-    # ── Instrucción por intención ─────────────────────────────
     instrucciones_intencion = {
-        "Saludo": (
-            f"El usuario está saludando. Salúdalo calurosamente, preséntate como el asistente virtual "
-            f"de {nombre_academia} y pregúntale en qué le puedes ayudar."
-        ),
-        "Despedida": (
-            f"El usuario se está despidiendo. Despídete de forma amable e invítalo a regresar "
-            f"cuando tenga más dudas sobre {nombre_academia}."
-        ),
-        "Desconocido": (
-            f"No se pudo entender con claridad la consulta del usuario (confianza baja: {confianza:.0%}). "
-            f"Discúlpate amablemente, dile que no entendiste bien su pregunta y pídele que la reformule. "
-            f"Si persiste la duda, invítalo a escribir nuevamente."
-        ),
-        "Consultar_Cursos": (
-            "El usuario pregunta por los cursos disponibles. "
-            "Menciona los cursos con su nombre, breve descripción y para qué edad van dirigidos. "
-            "Sé organizado pero no uses listas de puntos largas; redacta de forma conversacional."
-        ),
-        "Consultar_Costos": (
-            "El usuario pregunta por los precios. "
-            "Menciona el costo de cada curso con su moneda. "
-            "Si hay opciones de pago o abonos, menciónalo brevemente."
-        ),
-        "Consultar_Horarios": (
-            "El usuario pregunta por los horarios disponibles. "
-            "Presenta los horarios de forma clara, por curso si aplica."
-        ),
-        "Consultar_Ubicacion": (
-            "El usuario pregunta por la ubicación de la academia. "
-            "Da la dirección, referencias útiles y el link de Google Maps si está disponible."
-        ),
-        "Consultar_Modalidad": (
-            "El usuario pregunta si las clases son presenciales, virtuales o mixtas. "
-            "Explica la modalidad de cada curso de forma clara."
-        ),
-        "Consultar_Certificacion": (
-            "El usuario pregunta si la academia otorga certificado o diploma. "
-            "Responde con la información disponible sobre certificación."
-        ),
-        "Consultar_ClaseDemo": (
-            "El usuario pregunta si puede tomar una clase de prueba o demo antes de inscribirse. "
-            "Explica cómo funciona la masterclass o clase demo si está disponible."
-        ),
-        "Consultar_FormasPago": (
-            "El usuario pregunta por las formas de pago aceptadas. "
-            "Menciona los métodos de pago y si hay posibilidad de pagar en abonos."
-        ),
-        "Consultar_RequisitosEdad": (
-            "El usuario pregunta si hay restricciones de edad para los cursos. "
-            "Explica el rango de edad al que va dirigido cada curso."
-        ),
-        "Consultar_Duracion": (
-            "El usuario pregunta cuánto dura cada curso o cada clase. "
-            "Menciona la duración de cada curso de forma clara."
-        ),
+        "Saludo":                f"El usuario está saludando. Salúdalo calurosamente, preséntate como el asistente virtual de {nombre_academia} y pregúntale en qué le puedes ayudar.",
+        "Despedida":             f"El usuario se está despidiendo. Despídete de forma amable e invítalo a regresar cuando tenga más dudas sobre {nombre_academia}.",
+        "Desconocido":           f"No se pudo entender con claridad la consulta del usuario (confianza baja: {confianza:.0%}). Discúlpate amablemente, dile que no entendiste bien su pregunta y pídele que la reformule.",
+        "Consultar_Cursos":      "El usuario pregunta por los cursos disponibles. Menciona los cursos con su nombre, breve descripción y para qué edad van dirigidos. Redacta de forma conversacional.",
+        "Consultar_Costos":      "El usuario pregunta por los precios. Menciona el costo de cada curso con su moneda. Si hay opciones de pago o abonos, menciónalo brevemente.",
+        "Consultar_Horarios":    "El usuario pregunta por los horarios disponibles. Presenta los horarios de forma clara, por curso si aplica.",
+        "Consultar_Ubicacion":   "El usuario pregunta por la ubicación de la academia. Da la dirección, referencias útiles y el link de Google Maps si está disponible.",
+        "Consultar_Modalidad":   "El usuario pregunta si las clases son presenciales, virtuales o mixtas. Explica la modalidad de cada curso de forma clara.",
+        "Consultar_Certificacion": "El usuario pregunta si la academia otorga certificado o diploma. Responde con la información disponible sobre certificación.",
+        "Consultar_ClaseDemo":   "El usuario pregunta si puede tomar una clase de prueba o demo. Explica cómo funciona la masterclass o clase demo si está disponible.",
+        "Consultar_FormasPago":  "El usuario pregunta por las formas de pago aceptadas. Menciona los métodos de pago y si hay posibilidad de pagar en abonos.",
+        "Consultar_RequisitosEdad": "El usuario pregunta si hay restricciones de edad. Explica el rango de edad al que va dirigido cada curso.",
+        "Consultar_Duracion":    "El usuario pregunta cuánto dura cada curso o cada clase. Menciona la duración de cada curso de forma clara.",
     }
 
     instruccion_intencion = instrucciones_intencion.get(
         intencion,
-        f"Intención detectada: {intencion} (confianza: {confianza:.0%}). "
-        f"Usa los datos disponibles para responder de forma natural y completa."
+        f"Intención detectada: {intencion} (confianza: {confianza:.0%}). Usa los datos disponibles para responder de forma natural y completa."
     )
 
     return f"""
 Eres un asistente virtual amable de la academia {nombre_academia}.
 Siempre respondes en español mexicano, de forma natural y concisa.
 
-TONO: {instruccion_tono}
+TONO: {tono_map.get(sentimiento, tono_map["neutral"])}
 
 TAREA: {instruccion_intencion}
 
@@ -444,10 +346,11 @@ REGLAS IMPORTANTES:
 - No inventes información que no esté en los datos proporcionados.
 - No menciones que eres una IA a menos que el usuario te lo pregunte directamente.
 - Sé conciso: máximo 2-3 oraciones, salvo que la información requiera más detalle.
-- No uses listas con viñetas; redacta de forma conversacional, pero sé conciso.
+- No uses listas con viñetas; redacta de forma conversacional.
 - No repitas el saludo si ya lo hiciste antes en la conversación.
 - Termina siempre con una pregunta para seguir la conversación y convencer al usuario.
 """.strip()
+
 
 def construir_prompt_rag(contexto, config, sentimiento):
     """Prompt especial cuando se usa RAG como fallback."""
@@ -480,17 +383,23 @@ REGLAS IMPORTANTES:
 - Sé conciso y termina con una pregunta para continuar la conversación.
 """.strip()
 
-#respuesta cuando groq falla
 
+# ─────────────────────────────────────────────────────────────
+#  RESPUESTA DE EMERGENCIA
+# ─────────────────────────────────────────────────────────────
 RESPUESTA_FALLBACK = (
     "En este momento tengo un problema técnico. "
-    "Por favor, intenta de nuevo en un momento o llamanos directamente por WhatsApp. 🙏"
+    "Por favor, intenta de nuevo en un momento o escríbenos directamente por WhatsApp. 🙏"
 )
 
 
-
+# ─────────────────────────────────────────────────────────────
+#  FLASK APP
+# ─────────────────────────────────────────────────────────────
 app = Flask(__name__)
 CORS(app)
+
+
 @app.route("/")
 def index():
     return send_file("chat.html")
@@ -504,7 +413,7 @@ def chat():
             return jsonify({"error": "Body JSON requerido"}), 400
 
         mensaje = data.get("mensaje", "").strip()
-        numero = data.get("numero", "anonimo")  # número de WhatsApp del usuario
+        numero = data.get("numero", "anonimo")
 
         # ── 1. Validación de entrada ──────────────────────────
         es_valido, motivo = validar_entrada(mensaje)
@@ -521,7 +430,7 @@ def chat():
         # ── 3. Clasificación de intención ─────────────────────
         intencion, confianza = predecir_intent(mensaje)
 
-        # ── 4. Consulta a MongoDB o RAG según confianza ───────
+        # ── 4. MongoDB o RAG según confianza ──────────────────
         usar_rag = intencion == "Desconocido"
         contexto_rag = None
 
@@ -545,7 +454,7 @@ def chat():
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
-        # ── 6. Construcción del prompt dinámico ───────────────
+        # ── 6. Prompt dinámico ────────────────────────────────
         if usar_rag and contexto_rag:
             prompt_sistema = construir_prompt_rag(contexto_rag, config, sentimiento)
         else:
@@ -571,7 +480,7 @@ def chat():
             print(f"❌ Error en Groq: {groq_err}")
             respuesta = RESPUESTA_FALLBACK
 
-        # ── 8. Guardar conversación en MongoDB ────────────────
+        # ── 8. Guardar en MongoDB ─────────────────────────────
         if coleccion is not None:
             try:
                 coleccion.insert_one({
@@ -581,13 +490,12 @@ def chat():
                     "confianza":   round(confianza, 4),
                     "sentimiento": sentimiento,
                     "score_sent":  round(score_sentimiento, 4),
-                    "uso_rag":     usar_rag,   # ← solo agrega esta línea
+                    "uso_rag":     usar_rag,
                     "respuesta":   respuesta,
                     "timestamp":   datetime.now(),
                 })
             except Exception as mongo_err:
                 print(f"⚠️  No se pudo guardar en MongoDB: {mongo_err}")
-                # No interrumpimos la respuesta al usuario por esto
 
         # ── 9. Respuesta al cliente ───────────────────────────
         return jsonify({
@@ -599,47 +507,32 @@ def chat():
 
     except Exception as e:
         print(f"❌ Error inesperado en /chat: {e}")
-        return jsonify({
-            "respuesta": RESPUESTA_FALLBACK
-        }), 200  # 200 para que WhatsApp no reintente el webhook
+        return jsonify({"respuesta": RESPUESTA_FALLBACK}), 200
 
 
-# ─────────────────────────────────────────────────────────────
-#  ENDPOINT: REENTRENAR MANUALMENTE (parametrizable)
-#  POST /retrain  → recarga el modelo desde el dataset actualizado
-#  Útil cuando agregan nuevas intenciones al dataset
-# ─────────────────────────────────────────────────────────────
 @app.route("/retrain", methods=["POST"])
 def retrain():
-    """
-    Endpoint para reentrenar el modelo sin tocar código.
-    Llamar cuando se agreguen nuevas intenciones al dataset de Google Sheets.
-    Los datos de MongoDB (cursos, precios, etc.) NO requieren reentrenamiento.
-    """
+    """Reentrenar el modelo manualmente."""
     global mejor_modelo, vectorizer
     try:
-        # Forzar re-descarga del dataset y reentrenamiento
         if os.path.exists("intencione.xlsx"):
             os.remove("intencione.xlsx")
         if os.path.exists(MODEL_PATH):
             os.remove(MODEL_PATH)
-
         mejor_modelo, vectorizer = entrenar_y_guardar()
-        return jsonify({"status": "ok", "mensaje": "Modelo reentrenado exitosamente"}), 200
+        return jsonify({"status": "ok", "mensaje": "Modelo reentrenado exitosamente ✅"}), 200
     except Exception as e:
         return jsonify({"status": "error", "mensaje": str(e)}), 500
 
 
-# ─────────────────────────────────────────────────────────────
-#  ENDPOINT: HEALTH CHECK
-# ─────────────────────────────────────────────────────────────
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status":        "ok",
+        "status":         "ok",
         "modelo_cargado": mejor_modelo is not None,
         "mongo_ok":       db is not None,
         "groq_ok":        client_groq is not None,
+        "rag_listo":      rag_index is not None,
         "timestamp":      datetime.now().isoformat(),
     }), 200
 
@@ -649,5 +542,5 @@ def health():
 # ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print(f"🚀 Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
-    
