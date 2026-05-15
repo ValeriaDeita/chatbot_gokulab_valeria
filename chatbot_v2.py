@@ -32,18 +32,22 @@ try:
     client_mongo.server_info()
     db = client_mongo["chatbot_Goku_lab"]
     coleccion = db["conversaciones"]
-    print("✅ MongoDB conectado.")
+    print("MongoDB conectado.")
 except Exception as e:
-    print(f"❌ Error conectando a MongoDB: {e}")
+    print(f"Error conectando a MongoDB: {e}")
     db = None
     coleccion = None
 
-try:
-    client_groq = Groq(api_key=os.getenv("GROQ_API_KEY"))
-    print("✅ Groq conectado.")
-except Exception as e:
-    print(f"❌ Error conectando a Groq: {e}")
-    client_groq = None
+GROQ_KEYS = [
+    os.getenv("GROQ_API_KEY_1"),
+    os.getenv("GROQ_API_KEY_2"),
+]
+GROQ_KEYS = [k for k in GROQ_KEYS if k] 
+
+if GROQ_KEYS:
+    print(f"Groq conectado con {len(GROQ_KEYS)} key(s).")
+else:
+    print("No se encontraron API keys de Groq.")
 
 # ── Analizador de sentimiento ─────────────────────────────────
 analizador_sentimiento = SentimentIntensityAnalyzer()
@@ -56,17 +60,17 @@ PDF_PATH = "gokulab_info.pdf"
 def cargar_pdf():
     """Extrae todo el texto del PDF al arrancar."""
     if not os.path.exists(PDF_PATH):
-        print(f"⚠️  PDF no encontrado en: {PDF_PATH}")
+        print(f"PDF no encontrado en: {PDF_PATH}")
         return ""
     try:
         texto = ""
         with pdfplumber.open(PDF_PATH) as pdf:
             for page in pdf.pages:
                 texto += page.extract_text() + "\n"
-        print(f"✅ PDF cargado: {len(texto)} caracteres.")
+        print(f"PDF cargado: {len(texto)} caracteres.")
         return texto
     except Exception as e:
-        print(f"❌ Error leyendo PDF: {e}")
+        print(f"Error leyendo PDF: {e}")
         return ""
 
 # Se carga una sola vez al arrancar, es instantáneo
@@ -96,7 +100,7 @@ def entrenar_y_guardar():
     url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
 
     if not os.path.exists(file_name):
-        print("📥 Descargando dataset...")
+        print("Descargando dataset...")
         gdown.download(url, file_name, quiet=False)
 
     df = pd.read_excel(file_name, engine="openpyxl")
@@ -137,14 +141,14 @@ def entrenar_y_guardar():
     with open(MODEL_PATH, "wb") as f:
         pickle.dump({"modelo": gs.best_estimator_, "vectorizer": vec}, f)
 
-    print(f"✅ Modelo entrenado. Mejor config: {gs.best_params_}")
+    print(f"Modelo entrenado. Mejor config: {gs.best_params_}")
     return gs.best_estimator_, vec
 
 
 def cargar_modelo():
     """Carga el modelo desde disco o entrena uno nuevo si no existe."""
     if os.path.exists(MODEL_PATH):
-        print("✅ Modelo cargado desde disco.")
+        print("Modelo cargado desde disco.")
         with open(MODEL_PATH, "rb") as f:
             datos = pickle.load(f)
         return datos["modelo"], datos["vectorizer"]
@@ -155,7 +159,7 @@ def cargar_modelo():
 try:
     mejor_modelo, vectorizer = cargar_modelo()
 except Exception as e:
-    print(f"❌ Error cargando/entrenando modelo: {e}")
+    print(f"Error cargando/entrenando modelo: {e}")
     mejor_modelo, vectorizer = None, None
 
 
@@ -240,7 +244,7 @@ def validar_entrada(mensaje):
 
 RESPUESTAS_INVALIDAS = {
     "empty":        "¡Hola! Parece que tu mensaje llegó vacío. ¿En qué te puedo ayudar? 😊",
-    "only_symbols": "¡Hola! No entendí bien tu mensaje. ¿Puedes escribirme tu pregunta con palabras?",
+    "only_symbols": "¡Hola! No entendí bien tu mensaje. ¿Puedes escribirme tu pregunta?",
     "too_short":    "¿Puedes contarme un poco más? Con gusto te ayudo 😊",
 }
 
@@ -343,6 +347,23 @@ RESPUESTA_FALLBACK = (
     "Por favor, intenta de nuevo en un momento o escríbenos directamente por WhatsApp. 🙏"
 )
 
+def llamar_groq(messages):
+    """Intenta con cada API key hasta que una funcione."""
+    for key in GROQ_KEYS:
+        try:
+            cliente = Groq(api_key=key)
+            respuesta = cliente.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                max_tokens=256,
+                temperature=0.7,
+                messages=messages
+            )
+            return respuesta.choices[0].message.content
+        except Exception as e:
+            print(f"Key falló: {e}. Intentando siguiente...")
+            continue
+    return RESPUESTA_FALLBACK
+
 
 # ─────────────────────────────────────────────────────────────
 #  FLASK APP
@@ -397,7 +418,7 @@ def chat():
             historial_db = list(
                 coleccion.find({"numero": numero}, {"_id": 0, "mensaje": 1, "respuesta": 1})
                 .sort("timestamp", -1)
-                .limit(5)
+                .limit(4)
             )
             for h in reversed(historial_db):
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
@@ -410,24 +431,8 @@ def chat():
             prompt_sistema = construir_prompt(intencion, confianza, datos, config, sentimiento)
 
         # ── 7. Llamada a Groq ─────────────────────────────────
-        if client_groq is None:
-            return jsonify({"respuesta": RESPUESTA_FALLBACK}), 200
-
-        try:
-            respuesta_groq = client_groq.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                max_tokens=512,
-                temperature=0.7,
-                messages=[
-                    {"role": "system", "content": prompt_sistema},
-                    *historial_groq,
-                    {"role": "user", "content": mensaje},
-                ],
-            )
-            respuesta = respuesta_groq.choices[0].message.content
-        except Exception as groq_err:
-            print(f"❌ Error en Groq: {groq_err}")
-            respuesta = RESPUESTA_FALLBACK
+        respuesta = llamar_groq([{"role": "system", "content": prompt_sistema},*historial_groq,{"role": "user", "content": mensaje},
+])
 
         # ── 8. Guardar en MongoDB ─────────────────────────────
         if coleccion is not None:
@@ -444,7 +449,7 @@ def chat():
                     "timestamp":   datetime.now(),
                 })
             except Exception as mongo_err:
-                print(f"⚠️  No se pudo guardar en MongoDB: {mongo_err}")
+                print(f"No se pudo guardar en MongoDB: {mongo_err}")
 
         # ── 9. Respuesta al cliente ───────────────────────────
         return jsonify({
@@ -455,7 +460,7 @@ def chat():
         })
 
     except Exception as e:
-        print(f"❌ Error inesperado en /chat: {e}")
+        print(f"Error inesperado en /chat: {e}")
         return jsonify({"respuesta": RESPUESTA_FALLBACK}), 200
 
 
@@ -469,7 +474,7 @@ def retrain():
         if os.path.exists(MODEL_PATH):
             os.remove(MODEL_PATH)
         mejor_modelo, vectorizer = entrenar_y_guardar()
-        return jsonify({"status": "ok", "mensaje": "Modelo reentrenado exitosamente ✅"}), 200
+        return jsonify({"status": "ok", "mensaje": "Modelo reentrenado exitosamente"}), 200
     except Exception as e:
         return jsonify({"status": "error", "mensaje": str(e)}), 500
 
@@ -480,7 +485,7 @@ def health():
         "status":         "ok",
         "modelo_cargado": mejor_modelo is not None,
         "mongo_ok":       db is not None,
-        "groq_ok":        client_groq is not None,
+        "groq_ok": len(GROQ_KEYS) > 0,
         "rag_listo":      bool(CONTEXTO_PDF),
         "timestamp":      datetime.now().isoformat(),
     }), 200
