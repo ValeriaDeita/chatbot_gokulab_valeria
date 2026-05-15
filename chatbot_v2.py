@@ -233,7 +233,7 @@ def validar_entrada(mensaje):
     texto_limpio = re.sub(r"[^\w\s]", "", mensaje, flags=re.UNICODE).strip()
     if len(texto_limpio) < 2:
         return False, "only_symbols"
-    if len(mensaje.strip()) < 3:
+    if len(mensaje.strip()) < 2:
         return False, "too_short"
     return True, None
 
@@ -262,7 +262,9 @@ def construir_prompt(intencion, confianza, datos, config, sentimiento):
 
     instrucciones_intencion = {
         "Saludo":                  f"El usuario está saludando. Salúdalo calurosamente, preséntate como el asistente virtual de {nombre_academia} y pregúntale en qué le puedes ayudar.",
-        "Despedida":               f"El usuario se está despidiendo. Despídete de forma amable e invítalo a regresar cuando tenga más dudas sobre {nombre_academia}.",
+        "Despedida":              (f"El usuario se está despidiendo. Despídete de forma amable e invítalo a regresar "
+                                   f"cuando tenga más dudas sobre {nombre_academia}. "
+                                   f"Termina SIEMPRE con exactamente esta frase: '¡Te esperamos en Goku Lab! 🎮\nJuega, Aprende y Emprende'"),
         "Desconocido":             f"No se pudo entender con claridad la consulta (confianza baja: {confianza:.0%}). Discúlpate amablemente y pídele que reformule su pregunta.",
         "Consultar_Cursos":        "El usuario pregunta por los cursos disponibles. Menciona los cursos con nombre, descripción breve y edad dirigida. Redacta de forma conversacional.",
         "Consultar_Costos":        "El usuario pregunta por los precios. Menciona el costo de cada curso con su moneda y opciones de pago si las hay.",
@@ -294,7 +296,7 @@ DATOS DISPONIBLES: {datos}
 REGLAS IMPORTANTES:
 - No inventes información que no esté en los datos proporcionados.
 - No menciones que eres una IA a menos que el usuario te lo pregunte directamente.
-- Sé conciso: máximo 2-3 oraciones, salvo que la información requiera más detalle.
+- Sé MUY conciso: máximo 2 oraciones cortas. Si necesitas dar más info, da lo más importante y pregunta si quiere saber más
 - No uses listas con viñetas; redacta de forma conversacional.
 - No repitas el saludo si ya lo hiciste antes en la conversación.
 - Termina siempre con una pregunta para seguir la conversación y convencer al usuario.
@@ -492,4 +494,3 @@ if __name__ == "__main__":
     print(f"🚀 Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
 
-    
