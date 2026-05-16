@@ -44,7 +44,7 @@ GROQ_KEYS = [
     os.getenv("GROQ_API_KEY_3"),
     os.getenv("GROQ_API_KEY_4"),
 ]
-GROQ_KEYS = [k for k in GROQ_KEYS if k] 
+GROQ_KEYS = [k for k in GROQ_KEYS if k]
 
 if GROQ_KEYS:
     print(f"Groq conectado con {len(GROQ_KEYS)} key(s).")
@@ -55,12 +55,11 @@ else:
 analizador_sentimiento = SentimentIntensityAnalyzer()
 
 # ─────────────────────────────────────────────────────────────
-#  RAG — FALLBACK CON PDF (versión simple con pdfplumber)
+#  RAG — FALLBACK CON PDF
 # ─────────────────────────────────────────────────────────────
 PDF_PATH = "gokulab_info.pdf"
 
 def cargar_pdf():
-    """Extrae todo el texto del PDF al arrancar."""
     if not os.path.exists(PDF_PATH):
         print(f"PDF no encontrado en: {PDF_PATH}")
         return ""
@@ -75,7 +74,6 @@ def cargar_pdf():
         print(f"Error leyendo PDF: {e}")
         return ""
 
-# Se carga una sola vez al arrancar, es instantáneo
 CONTEXTO_PDF = cargar_pdf()
 
 # ─────────────────────────────────────────────────────────────
@@ -86,7 +84,6 @@ stop_words = set(stopwords.words("spanish"))
 
 
 def limpiar_texto(texto):
-    """Normaliza, limpia signos y quita stopwords."""
     texto = str(texto).lower()
     texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode("utf-8")
     texto = re.sub(r"[^\w\s]", "", texto)
@@ -96,7 +93,6 @@ def limpiar_texto(texto):
 
 
 def entrenar_y_guardar():
-    """Descarga el dataset, entrena el modelo y lo guarda en disco."""
     file_id = "1viVnkIq_QIp8jI_Ysye6Q_WVerPsvUvE"
     file_name = "intencione.xlsx"
     url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
@@ -148,13 +144,12 @@ def entrenar_y_guardar():
 
 
 def cargar_modelo():
-    """Carga el modelo desde disco o entrena uno nuevo si no existe."""
     if os.path.exists(MODEL_PATH):
         print("Modelo cargado desde disco.")
         with open(MODEL_PATH, "rb") as f:
             datos = pickle.load(f)
         return datos["modelo"], datos["vectorizer"]
-    print("⚙️  No se encontró modelo en disco. Entrenando...")
+    print("No se encontró modelo en disco. Entrenando...")
     return entrenar_y_guardar()
 
 
@@ -170,7 +165,6 @@ except Exception as e:
 # ─────────────────────────────────────────────────────────────
 
 def predecir_intent(texto, umbral=0.5):
-    """Clasifica el texto. Si confianza < umbral devuelve 'Desconocido'."""
     if mejor_modelo is None or vectorizer is None:
         return "Desconocido", 0.0
     vector = vectorizer.transform([limpiar_texto(texto)])
@@ -181,35 +175,82 @@ def predecir_intent(texto, umbral=0.5):
     return mejor_modelo.classes_[probs.argmax()], max_prob
 
 
+# ─────────────────────────────────────────────────────────────
+#  OBTENER DATOS — SOLO CAMPOS NECESARIOS (reduce tokens)
+# ─────────────────────────────────────────────────────────────
+
 def obtener_datos_por_intencion(intencion):
-    """Consulta MongoDB según la intención detectada."""
     if db is None:
         return {}
 
     config = db["datos_generales"].find_one({}, {"_id": 0}) or {}
 
-    if intencion == "Consultar_Cursos":
-        return {"cursos": list(db["cursos"].find({}, {"_id": 0})), "config": config}
-    elif intencion == "Consultar_Costos":
-        return {"cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "precio": 1, "moneda": 1})), "config": config}
-    elif intencion == "Consultar_Horarios":
-        return {"horarios": list(db["horarios"].find({}, {"_id": 0})), "config": config}
-    elif intencion == "Consultar_Certificacion":
-        return {"certificacion": config.get("certificacion"), "config": config}
-    elif intencion == "Consultar_ClaseDemo":
-        return {"masterclass": config.get("masterclass"), "config": config}
-    elif intencion == "Consultar_FormasPago":
-        return {"pagos": config.get("formas_pago"), "abonos": config.get("detalle_abonos"), "config": config}
-    elif intencion == "Consultar_Modalidad":
-        return {"cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "modalidad": 1})), "config": config}
-    elif intencion == "Consultar_RequisitosEdad":
-        return {"cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "edad_dirigida": 1})), "config": config}
-    elif intencion == "Consultar_Duracion":
-        return {"cursos": list(db["cursos"].find({}, {"_id": 0, "nombreCurso": 1, "duracion_min_por_clase": 1})), "config": config}
-    elif intencion == "Consultar_Ubicacion":
-        return {"direccion": config.get("direccion"), "referencias": config.get("referencias"), "link_maps": config.get("link_maps"), "config": config}
+    # Campos mínimos de config que siempre se usan
+    config_mini = {
+        "nombre_academia": config.get("nombre_academia"),
+        "whatsapp":        config.get("whatsapp"),
+    }
 
-    return {"config": config}
+    if intencion == "Consultar_Cursos":
+        cursos = list(db["cursos"].find({}, {
+            "_id": 0, "nombreCurso": 1, "descripción": 1, "edad_dirigida": 1, "modalidad": 1
+        }))
+        return {"cursos": cursos, "config": config_mini}
+
+    elif intencion == "Consultar_Costos":
+        return {
+            "costos": config.get("costos"),
+            "formas_pago": config.get("formas_pago"),
+            "abonos": config.get("detalle_abonos"),
+            "config": config_mini
+        }
+
+    elif intencion == "Consultar_Horarios":
+        horarios = list(db["horarios"].find({}, {
+            "_id": 0, "nombreCurso": 1, "horarios": 1
+        }))
+        return {"horarios": horarios, "config": config_mini}
+
+    elif intencion == "Consultar_Certificacion":
+        return {"certificacion": config.get("certificacion"), "config": config_mini}
+
+    elif intencion == "Consultar_ClaseDemo":
+        return {"masterclass": config.get("masterclass"), "config": config_mini}
+
+    elif intencion == "Consultar_FormasPago":
+        return {
+            "formas_pago": config.get("formas_pago"),
+            "abonos": config.get("detalle_abonos"),
+            "config": config_mini
+        }
+
+    elif intencion == "Consultar_Modalidad":
+        cursos = list(db["cursos"].find({}, {
+            "_id": 0, "nombreCurso": 1, "modalidad": 1
+        }))
+        return {"cursos": cursos, "config": config_mini}
+
+    elif intencion == "Consultar_RequisitosEdad":
+        cursos = list(db["cursos"].find({}, {
+            "_id": 0, "nombreCurso": 1, "edad_dirigida": 1
+        }))
+        return {"cursos": cursos, "config": config_mini}
+
+    elif intencion == "Consultar_Duracion":
+        cursos = list(db["cursos"].find({}, {
+            "_id": 0, "nombreCurso": 1, "duración_min_clase": 1
+        }))
+        return {"cursos": cursos, "config": config_mini}
+
+    elif intencion == "Consultar_Ubicacion":
+        return {
+            "direccion":   config.get("direccion"),
+            "referencias": config.get("referencias"),
+            "maps":        config.get("google_maps"),
+            "config":      config_mini
+        }
+
+    return {"config": config_mini}
 
 
 # ─────────────────────────────────────────────────────────────
@@ -217,7 +258,6 @@ def obtener_datos_por_intencion(intencion):
 # ─────────────────────────────────────────────────────────────
 
 def analizar_sentimiento(texto):
-    """Usa VADER para detectar el tono emocional del mensaje."""
     scores = analizador_sentimiento.polarity_scores(texto)
     compound = scores["compound"]
     if compound <= -0.35:
@@ -233,7 +273,6 @@ def analizar_sentimiento(texto):
 # ─────────────────────────────────────────────────────────────
 
 def validar_entrada(mensaje):
-    """Verifica que el mensaje sea procesable."""
     if not mensaje or not mensaje.strip():
         return False, "empty"
     texto_limpio = re.sub(r"[^\w\s]", "", mensaje, flags=re.UNICODE).strip()
@@ -252,93 +291,55 @@ RESPUESTAS_INVALIDAS = {
 
 
 # ─────────────────────────────────────────────────────────────
-#  CONSTRUCCIÓN DE PROMPTS
+#  CONSTRUCCIÓN DE PROMPTS — COMPACTOS
 # ─────────────────────────────────────────────────────────────
 
-def construir_prompt(intencion, confianza, datos, config, sentimiento):
-    """Prompt dinámico según intención y sentimiento."""
-    nombre_academia = config.get("nombre_academia", "Goku Lab")
-    whatsapp = config.get("whatsapp", "")
+TONO_MAP = {
+    "negativo": "El usuario está frustrado. Responde con empatía y paciencia.",
+    "positivo": "El usuario está animado. Mantén esa energía.",
+    "neutral":  "Responde de forma amable y profesional.",
+}
 
-    tono_map = {
-        "negativo": "El usuario parece frustrado o molesto. Responde con mucha empatía, valida su sentimiento y sé especialmente paciente. No uses signos de exclamación excesivos.",
-        "positivo": "El usuario está animado o entusiasmado. Mantén esa energía positiva y responde con entusiasmo.",
-        "neutral":  "Responde de forma amable, clara y profesional.",
-    }
+INSTRUCCIONES = {
+    "Saludo":                   "Saluda calurosamente, preséntate como asistente de {academia} y pregunta en qué puedes ayudar.",
+    "Despedida":                "Despídete amablemente. Termina SIEMPRE con: '¡Te esperamos en Goku Lab! 🎮\nJuega, Aprende y Emprende'",
+    "Desconocido":              "No entendiste la consulta. Discúlpate y pide que la reformule.",
+    "Consultar_Cursos":         "Menciona los cursos disponibles con nombre, descripción breve y edad. Sé conversacional.",
+    "Consultar_Costos":         "Informa el rango de costos y formas de pago disponibles.",
+    "Consultar_Horarios":       "Presenta los horarios por curso de forma clara.",
+    "Consultar_Ubicacion":      "Da la dirección, referencias y link de Maps.",
+    "Consultar_Modalidad":      "Explica si las clases son presenciales, online o híbridas por curso.",
+    "Consultar_Certificacion":  "Explica si se otorga certificado y su validez.",
+    "Consultar_ClaseDemo":      "Explica cómo funciona la clase de prueba gratuita.",
+    "Consultar_FormasPago":     "Menciona métodos de pago y opción de abonos.",
+    "Consultar_RequisitosEdad": "Explica el rango de edad por curso.",
+    "Consultar_Duracion":       "Menciona la duración de cada curso.",
+}
 
-    instrucciones_intencion = {
-        "Saludo":                  f"El usuario está saludando. Salúdalo calurosamente, preséntate como el asistente virtual de {nombre_academia} y pregúntale en qué le puedes ayudar.",
-        "Despedida":              (f"El usuario se está despidiendo. Despídete de forma amable e invítalo a regresar "
-                                   f"cuando tenga más dudas sobre {nombre_academia}. "
-                                   f"Termina SIEMPRE con exactamente esta frase: '¡Te esperamos en Goku Lab! 🎮\nJuega, Aprende y Emprende'"),
-        "Desconocido":             f"No se pudo entender con claridad la consulta (confianza baja: {confianza:.0%}). Discúlpate amablemente y pídele que reformule su pregunta.",
-        "Consultar_Cursos":        "El usuario pregunta por los cursos disponibles. Menciona los cursos con nombre, descripción breve y edad dirigida. Redacta de forma conversacional.",
-        "Consultar_Costos":        "El usuario pregunta por los precios. Menciona el costo de cada curso con su moneda y opciones de pago si las hay.",
-        "Consultar_Horarios":      "El usuario pregunta por los horarios. Preséntelos de forma clara por curso.",
-        "Consultar_Ubicacion":     "El usuario pregunta por la ubicación. Da la dirección, referencias y link de Google Maps si está disponible.",
-        "Consultar_Modalidad":     "El usuario pregunta si las clases son presenciales, virtuales o mixtas. Explica la modalidad de cada curso.",
-        "Consultar_Certificacion": "El usuario pregunta si otorgan certificado o diploma. Responde con la información disponible.",
-        "Consultar_ClaseDemo":     "El usuario pregunta por una clase de prueba. Explica cómo funciona la masterclass o clase demo.",
-        "Consultar_FormasPago":    "El usuario pregunta por formas de pago. Menciona los métodos y si hay opción de abonos.",
-        "Consultar_RequisitosEdad":"El usuario pregunta por requisitos de edad. Explica el rango de edad de cada curso.",
-        "Consultar_Duracion":      "El usuario pregunta cuánto duran los cursos. Menciona la duración de cada uno.",
-    }
+def construir_prompt(intencion, datos, config, sentimiento):
+    academia = config.get("nombre_academia", "Goku Lab")
+    instruccion = INSTRUCCIONES.get(intencion, f"Responde sobre: {intencion}").replace("{academia}", academia)
 
-    instruccion_intencion = instrucciones_intencion.get(
-        intencion,
-        f"Intención: {intencion} (confianza: {confianza:.0%}). Usa los datos disponibles para responder."
+    return (
+        f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
+        f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
+        f"Tarea: {instruccion}\n"
+        f"Datos: {datos}\n"
+        f"Reglas: No inventes info. Máximo 2 oraciones. Sin viñetas. Termina con una pregunta."
     )
-
-    return f"""
-Eres un asistente virtual amable de la academia {nombre_academia}.
-Siempre respondes en español mexicano, de forma natural y concisa.
-
-TONO: {tono_map.get(sentimiento, tono_map["neutral"])}
-
-TAREA: {instruccion_intencion}
-
-DATOS DISPONIBLES: {datos}
-
-REGLAS IMPORTANTES:
-- No inventes información que no esté en los datos proporcionados.
-- No menciones que eres una IA a menos que el usuario te lo pregunte directamente.
-- Sé MUY conciso: máximo 2 oraciones cortas. Si necesitas dar más info, da lo más importante y pregunta si quiere saber más
-- No uses listas con viñetas; redacta de forma conversacional.
-- No repitas el saludo si ya lo hiciste antes en la conversación.
-- Termina siempre con una pregunta para seguir la conversación y convencer al usuario.
-""".strip()
 
 
 def construir_prompt_rag(contexto_pdf, config, sentimiento):
-    """Prompt para cuando el clasificador no reconoce la intención (fallback RAG)."""
-    nombre_academia = config.get("nombre_academia", "Goku Lab")
+    academia = config.get("nombre_academia", "Goku Lab")
     whatsapp = config.get("whatsapp", "")
 
-    tono_map = {
-        "negativo": "El usuario parece frustrado. Responde con mucha empatía y paciencia.",
-        "positivo": "El usuario está animado. Mantén esa energía positiva.",
-        "neutral":  "Responde de forma amable, clara y profesional.",
-    }
-
-    return f"""
-Eres un asistente virtual amable de la academia {nombre_academia}.
-Siempre respondes en español mexicano, de forma natural y concisa.
-
-TONO: {tono_map.get(sentimiento, tono_map["neutral"])}
-
-TAREA: El usuario hizo una pregunta que no pudo clasificarse con certeza.
-Usa únicamente la siguiente información de la academia para responder:
-
-INFORMACIÓN DE LA ACADEMIA:
-{contexto_pdf}
-
-REGLAS IMPORTANTES:
-- Responde solo con lo que está en la información proporcionada.
-- Si la información no es suficiente, dile amablemente que no tienes ese dato
-  e invítalo a contactar por WhatsApp: {whatsapp}.
-- No menciones que eres una IA a menos que te lo pregunten.
-- Sé conciso y termina con una pregunta para continuar la conversación.
-""".strip()
+    return (
+        f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
+        f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
+        f"Usa solo esta info para responder:\n{contexto_pdf}\n"
+        f"Si no tienes el dato, invita a contactar por WhatsApp: {whatsapp}.\n"
+        f"Termina con una pregunta."
+    )
 
 
 # ─────────────────────────────────────────────────────────────
@@ -350,13 +351,12 @@ RESPUESTA_FALLBACK = (
 )
 
 def llamar_groq(messages):
-    """Intenta con cada API key hasta que una funcione."""
     for key in GROQ_KEYS:
         try:
             cliente = Groq(api_key=key)
             respuesta = cliente.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                max_tokens=256,
+                max_tokens=200,
                 temperature=0.7,
                 messages=messages
             )
@@ -390,54 +390,52 @@ def chat():
             return jsonify({"error": "Body JSON requerido"}), 400
 
         mensaje = data.get("mensaje", "").strip()
-        numero = data.get("numero", "anonimo")
+        numero  = data.get("numero", "anonimo")
 
-        # ── 1. Validación de entrada ──────────────────────────
+        # ── 1. Validación ─────────────────────────────────────
         es_valido, motivo = validar_entrada(mensaje)
         if not es_valido:
             return jsonify({
-                "respuesta": RESPUESTAS_INVALIDAS.get(motivo, "¿En qué te puedo ayudar?"),
-                "intencion": "invalido",
+                "respuesta":   RESPUESTAS_INVALIDAS.get(motivo, "¿En qué te puedo ayudar?"),
+                "intencion":   "invalido",
                 "sentimiento": None,
             }), 200
 
-        # ── 2. Análisis de sentimiento ────────────────────────
+        # ── 2. Sentimiento ────────────────────────────────────
         sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
 
-        # ── 3. Clasificación de intención ─────────────────────
+        # ── 3. Intención ──────────────────────────────────────
         intencion, confianza = predecir_intent(mensaje)
 
-        # ── 4. MongoDB o RAG según confianza ──────────────────
+        # ── 4. Datos mínimos según intención ──────────────────
         usar_rag = intencion == "Desconocido"
+        datos    = obtener_datos_por_intencion(intencion)
+        config   = datos.get("config") or {}
 
-        if usar_rag:
-            datos = obtener_datos_por_intencion("Desconocido")
-        else:
-            datos = obtener_datos_por_intencion(intencion)
-
-        config = datos.get("config") or {}
-
-        # ── 5. Historial reciente del usuario (últimos 5) ─────
+        # ── 5. Historial reciente (últimos 3 intercambios) ────
         historial_groq = []
         if coleccion is not None:
             historial_db = list(
                 coleccion.find({"numero": numero}, {"_id": 0, "mensaje": 1, "respuesta": 1})
                 .sort("timestamp", -1)
-                .limit(4)
+                .limit(3)
             )
             for h in reversed(historial_db):
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
-        # ── 6. Prompt dinámico ────────────────────────────────
+        # ── 6. Prompt ─────────────────────────────────────────
         if usar_rag and CONTEXTO_PDF:
             prompt_sistema = construir_prompt_rag(CONTEXTO_PDF, config, sentimiento)
         else:
-            prompt_sistema = construir_prompt(intencion, confianza, datos, config, sentimiento)
+            prompt_sistema = construir_prompt(intencion, datos, config, sentimiento)
 
         # ── 7. Llamada a Groq ─────────────────────────────────
-        respuesta = llamar_groq([{"role": "system", "content": prompt_sistema},*historial_groq,{"role": "user", "content": mensaje},
-])
+        respuesta = llamar_groq([
+            {"role": "system", "content": prompt_sistema},
+            *historial_groq,
+            {"role": "user",   "content": mensaje},
+        ])
 
         # ── 8. Guardar en MongoDB ─────────────────────────────
         if coleccion is not None:
@@ -456,7 +454,7 @@ def chat():
             except Exception as mongo_err:
                 print(f"No se pudo guardar en MongoDB: {mongo_err}")
 
-        # ── 9. Respuesta al cliente ───────────────────────────
+        # ── 9. Respuesta ──────────────────────────────────────
         return jsonify({
             "intencion":   intencion,
             "confianza":   f"{confianza:.0%}",
@@ -471,7 +469,6 @@ def chat():
 
 @app.route("/retrain", methods=["POST"])
 def retrain():
-    """Reentrenar el modelo manualmente sin tocar código."""
     global mejor_modelo, vectorizer
     try:
         if os.path.exists("intencione.xlsx"):
@@ -490,7 +487,7 @@ def health():
         "status":         "ok",
         "modelo_cargado": mejor_modelo is not None,
         "mongo_ok":       db is not None,
-        "groq_ok": len(GROQ_KEYS) > 0,
+        "groq_ok":        len(GROQ_KEYS) > 0,
         "rag_listo":      bool(CONTEXTO_PDF),
         "timestamp":      datetime.now().isoformat(),
     }), 200
@@ -501,6 +498,8 @@ def health():
 # ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    print(f"🚀 Arrancando Flask en puerto {port}...")
+    print(f"Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
 
+
+    
