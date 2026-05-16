@@ -371,6 +371,9 @@ def llamar_groq(messages):
 app = Flask(__name__)
 CORS(app)
 
+@app.route("/logo.png")
+def logo():
+    return send_file("logo.png")
 
 @app.route("/")
 def index():
