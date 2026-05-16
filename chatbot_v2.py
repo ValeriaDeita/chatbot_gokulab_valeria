@@ -41,6 +41,8 @@ except Exception as e:
 GROQ_KEYS = [
     os.getenv("GROQ_API_KEY_1"),
     os.getenv("GROQ_API_KEY_2"),
+    os.getenv("GROQ_API_KEY_3"),
+    os.getenv("GROQ_API_KEY_4"),
 ]
 GROQ_KEYS = [k for k in GROQ_KEYS if k] 
 
