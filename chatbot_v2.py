@@ -43,6 +43,7 @@ GROQ_KEYS = [
     os.getenv("GROQ_API_KEY_2"),
     os.getenv("GROQ_API_KEY_3"),
     os.getenv("GROQ_API_KEY_4"),
+    os.getenv("GROQ_API_KEY_5"),
 ]
 GROQ_KEYS = [k for k in GROQ_KEYS if k]
 
@@ -502,4 +503,3 @@ if __name__ == "__main__":
     app.run(host="0.0.0.0", port=port)
 
 
-    
