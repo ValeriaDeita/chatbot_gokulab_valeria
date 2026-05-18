@@ -1,6 +1,6 @@
 # Chatbot Goku Lab
 
-Asistente virtual inteligente para la academia **Goku Lab**, desarrollado como proyecto de prácticas profesionales en Entremex.
+Chatbot para la academia **Goku Lab**, desarrollado como prácticas profesionales en Entremex
 
 
 ## Arquitectura
