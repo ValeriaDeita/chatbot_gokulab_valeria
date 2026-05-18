@@ -19,14 +19,13 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flask_cors import CORS
 import pdfplumber
 
-# ─────────────────────────────────────────────────────────────
-#  SETUP INICIAL
-# ─────────────────────────────────────────────────────────────
+#SETUP INICIAL
+
 nltk.download("stopwords", quiet=True)
 nltk.download("punkt_tab", quiet=True)
 load_dotenv()
 
-# ── Conexiones ────────────────────────────────────────────────
+#Conexiones 
 try:
     client_mongo = MongoClient(os.getenv("MONGO_URI"), serverSelectionTimeoutMS=5000)
     client_mongo.server_info()
@@ -52,12 +51,11 @@ if GROQ_KEYS:
 else:
     print("No se encontraron API keys de Groq.")
 
-# ── Analizador de sentimiento ─────────────────────────────────
+#Analizador de sentimiento
 analizador_sentimiento = SentimentIntensityAnalyzer()
 
-# ─────────────────────────────────────────────────────────────
-#  RAG — FALLBACK CON PDF
-# ─────────────────────────────────────────────────────────────
+#RAG — FALLBACK CON PDF
+
 PDF_PATH = "gokulab_info.pdf"
 
 def cargar_pdf():
@@ -77,9 +75,7 @@ def cargar_pdf():
 
 CONTEXTO_PDF = cargar_pdf()
 
-# ─────────────────────────────────────────────────────────────
 #  MODELO: CARGAR O ENTRENAR
-# ─────────────────────────────────────────────────────────────
 MODEL_PATH = "modelo_intents.pkl"
 stop_words = set(stopwords.words("spanish"))
 
@@ -161,10 +157,6 @@ except Exception as e:
     mejor_modelo, vectorizer = None, None
 
 
-# ─────────────────────────────────────────────────────────────
-#  UTILIDADES DE CLASIFICACIÓN
-# ─────────────────────────────────────────────────────────────
-
 def predecir_intent(texto, umbral=0.5):
     if mejor_modelo is None or vectorizer is None:
         return "Desconocido", 0.0
@@ -175,10 +167,6 @@ def predecir_intent(texto, umbral=0.5):
         return "Desconocido", max_prob
     return mejor_modelo.classes_[probs.argmax()], max_prob
 
-
-# ─────────────────────────────────────────────────────────────
-#  OBTENER DATOS — SOLO CAMPOS NECESARIOS (reduce tokens)
-# ─────────────────────────────────────────────────────────────
 
 def obtener_datos_por_intencion(intencion):
     if db is None:
@@ -254,9 +242,7 @@ def obtener_datos_por_intencion(intencion):
     return {"config": config_mini}
 
 
-# ─────────────────────────────────────────────────────────────
-#  ANÁLISIS DE SENTIMIENTO
-# ─────────────────────────────────────────────────────────────
+#ANÁLISIS DE SENTIMIENTO
 
 def analizar_sentimiento(texto):
     scores = analizador_sentimiento.polarity_scores(texto)
@@ -269,9 +255,7 @@ def analizar_sentimiento(texto):
         return "neutral", compound
 
 
-# ─────────────────────────────────────────────────────────────
-#  VALIDACIÓN DE ENTRADA
-# ─────────────────────────────────────────────────────────────
+#VALIDACIÓN DE ENTRADA
 
 def validar_entrada(mensaje):
     if not mensaje or not mensaje.strip():
@@ -291,9 +275,7 @@ RESPUESTAS_INVALIDAS = {
 }
 
 
-# ─────────────────────────────────────────────────────────────
-#  CONSTRUCCIÓN DE PROMPTS — COMPACTOS
-# ─────────────────────────────────────────────────────────────
+#CONSTRUCCIÓN DE PROMPTS — COMPACTOS
 
 TONO_MAP = {
     "negativo": "El usuario está frustrado. Responde con empatía y paciencia.",
@@ -343,9 +325,8 @@ def construir_prompt_rag(contexto_pdf, config, sentimiento):
     )
 
 
-# ─────────────────────────────────────────────────────────────
-#  RESPUESTA DE EMERGENCIA
-# ─────────────────────────────────────────────────────────────
+#RESPUESTA DE EMERGENCIA
+
 RESPUESTA_FALLBACK = (
     "En este momento tengo un problema técnico. "
     "Por favor, intenta de nuevo en un momento o escríbenos directamente por WhatsApp. 🙏"
@@ -367,10 +348,8 @@ def llamar_groq(messages):
             continue
     return RESPUESTA_FALLBACK
 
+#FLASK APP
 
-# ─────────────────────────────────────────────────────────────
-#  FLASK APP
-# ─────────────────────────────────────────────────────────────
 app = Flask(__name__)
 CORS(app)
 
@@ -393,7 +372,7 @@ def chat():
         mensaje = data.get("mensaje", "").strip()
         numero  = data.get("numero", "anonimo")
 
-        # ── 1. Validación ─────────────────────────────────────
+        # 1. Validación ─────────────────────────────────────
         es_valido, motivo = validar_entrada(mensaje)
         if not es_valido:
             return jsonify({
@@ -402,18 +381,18 @@ def chat():
                 "sentimiento": None,
             }), 200
 
-        # ── 2. Sentimiento ────────────────────────────────────
+        # 2. Sentimiento 
         sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
 
-        # ── 3. Intención ──────────────────────────────────────
+        # 3. Intención 
         intencion, confianza = predecir_intent(mensaje)
 
-        # ── 4. Datos mínimos según intención ──────────────────
+        # 4. Datos mínimos según intención 
         usar_rag = intencion == "Desconocido"
         datos    = obtener_datos_por_intencion(intencion)
         config   = datos.get("config") or {}
 
-        # ── 5. Historial reciente (últimos 3 intercambios) ────
+        # 5. Historial reciente (últimos 3 intercambios) 
         historial_groq = []
         if coleccion is not None:
             historial_db = list(
@@ -425,20 +404,20 @@ def chat():
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
-        # ── 6. Prompt ─────────────────────────────────────────
+        # 6. Prompt
         if usar_rag and CONTEXTO_PDF:
             prompt_sistema = construir_prompt_rag(CONTEXTO_PDF, config, sentimiento)
         else:
             prompt_sistema = construir_prompt(intencion, datos, config, sentimiento)
 
-        # ── 7. Llamada a Groq ─────────────────────────────────
+        # 7. Llamada a Groq 
         respuesta = llamar_groq([
             {"role": "system", "content": prompt_sistema},
             *historial_groq,
             {"role": "user",   "content": mensaje},
         ])
 
-        # ── 8. Guardar en MongoDB ─────────────────────────────
+        # 8. Guardar en MongoDB 
         if coleccion is not None:
             try:
                 coleccion.insert_one({
@@ -455,7 +434,7 @@ def chat():
             except Exception as mongo_err:
                 print(f"No se pudo guardar en MongoDB: {mongo_err}")
 
-        # ── 9. Respuesta ──────────────────────────────────────
+        # 9. Respuesta 
         return jsonify({
             "intencion":   intencion,
             "confianza":   f"{confianza:.0%}",
@@ -494,9 +473,7 @@ def health():
     }), 200
 
 
-# ─────────────────────────────────────────────────────────────
-#  MAIN
-# ─────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Arrancando Flask en puerto {port}...")
