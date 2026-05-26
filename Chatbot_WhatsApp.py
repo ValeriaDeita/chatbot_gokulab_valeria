@@ -18,9 +18,10 @@ from datetime import datetime
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flask_cors import CORS
 import pdfplumber
+from twilio.twiml.messaging_response import MessagingResponse
+
 
 #SETUP INICIAL
-
 nltk.download("stopwords", quiet=True)
 nltk.download("punkt_tab", quiet=True)
 load_dotenv()
@@ -472,6 +473,71 @@ def health():
         "timestamp":      datetime.now().isoformat(),
     }), 200
 
+
+@app.route("/whatsapp", methods=["POST"])
+def whatsapp():
+    try:
+        mensaje = request.form.get("Body", "").strip()
+        numero  = request.form.get("From", "anonimo")
+
+        es_valido, motivo = validar_entrada(mensaje)
+        if not es_valido:
+            respuesta_texto = RESPUESTAS_INVALIDAS.get(motivo, "¿En qué te puedo ayudar?")
+        else:
+            sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
+            intencion, confianza = predecir_intent(mensaje)
+
+            usar_rag = intencion == "Desconocido"
+            datos    = obtener_datos_por_intencion(intencion)
+            config   = datos.get("config") or {}
+
+            historial_groq = []
+            if coleccion is not None:
+                historial_db = list(
+                    coleccion.find({"numero": numero}, {"_id": 0, "mensaje": 1, "respuesta": 1})
+                    .sort("timestamp", -1).limit(3)
+                )
+                for h in reversed(historial_db):
+                    historial_groq.append({"role": "user",      "content": h["mensaje"]})
+                    historial_groq.append({"role": "assistant", "content": h["respuesta"]})
+
+            if usar_rag and CONTEXTO_PDF:
+                prompt_sistema = construir_prompt_rag(CONTEXTO_PDF, config, sentimiento)
+            else:
+                prompt_sistema = construir_prompt(intencion, datos, config, sentimiento)
+
+            respuesta_texto = llamar_groq([
+                {"role": "system", "content": prompt_sistema},
+                *historial_groq,
+                {"role": "user",   "content": mensaje},
+            ])
+
+            if coleccion is not None:
+                try:
+                    coleccion.insert_one({
+                        "numero":      numero,
+                        "mensaje":     mensaje,
+                        "intencion":   intencion,
+                        "confianza":   round(confianza, 4),
+                        "sentimiento": sentimiento,
+                        "score_sent":  round(score_sentimiento, 4),
+                        "uso_rag":     usar_rag,
+                        "canal":       "whatsapp",
+                        "respuesta":   respuesta_texto,
+                        "timestamp":   datetime.now(),
+                    })
+                except Exception as e:
+                    print(f"No se pudo guardar en MongoDB: {e}")
+
+        resp = MessagingResponse()
+        resp.message(respuesta_texto)
+        return str(resp), 200, {"Content-Type": "text/xml"}
+
+    except Exception as e:
+        print(f"Error en /whatsapp: {e}")
+        resp = MessagingResponse()
+        resp.message(RESPUESTA_FALLBACK)
+        return str(resp), 200, {"Content-Type": "text/xml"}
 
 
 if __name__ == "__main__":
