@@ -11,3 +11,6 @@ gdown
 vaderSentiment
 pdfplumber
 twilio 
+gunicorn
+
+
