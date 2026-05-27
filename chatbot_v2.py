@@ -287,16 +287,32 @@ INSTRUCCIONES = {
     "Saludo":                   "Saluda calurosamente, preséntate como asistente de {academia} y pregunta en qué puedes ayudar.",
     "Despedida":                "Despídete amablemente. Termina SIEMPRE con: '¡Te esperamos en Goku Lab! 🎮\nJuega, Aprende y Emprende'",
     "Desconocido":              "No entendiste la consulta. Discúlpate y pide que la reformule.",
-    "Consultar_Cursos":         "Menciona los cursos disponibles con nombre y descripción breve. Sé conversacional.",
-    "Consultar_Costos":         "Informa el rango de costos y formas de pago disponibles.",
+    "Consultar_Cursos":         "Menciona los cursos disponibles con nombre y descripción breve (máximo dos líneas). Sé conversacional.",
+    "Consultar_Costos": (
+    "Informa el rango de costos y formas de pago disponibles según los datos. "
+    "Si el cliente pregunta por un costo específico o quiere más detalles, "
+    "indica que un mienbro del equipo de Gōku Lab le dará información personalizada. "
+    "NO inventes precios exactos que no estén en los datos. "
+    "NO menciones WhatsApp ni correos."),
     "Consultar_Horarios":       "Presenta los horarios por curso de forma clara.",
     "Consultar_Ubicacion":      "Da la dirección, referencias y link de Maps.",
     "Consultar_Modalidad":      "Explica si las clases son presenciales, online o híbridas por curso.",
     "Consultar_Certificacion":  "Explica si se otorga certificado y su validez.",
-    "Consultar_ClaseDemo":      "Explica cómo funciona la clase de prueba gratuita llamada 'Master Class' ",
+    "Consultar_ClaseDemo": (
+    "El usuario pregunta por la clase de prueba. "
+    "Explica que existe una Master Class gratuita para conocer la metodología. "
+    "Indica que un miembro del equipo de Gōku Lab se pondrá en contacto para coordinar "
+    "la fecha y hora según la disponibilidad del cliente y la academia. "
+    "NO menciones correos, enlaces, formularios ni WhatsApp. "
+    "NO inventes fechas ni horarios fijos."),
     "Consultar_FormasPago":     "Menciona métodos de pago y opción de abonos.",
     "Consultar_RequisitosEdad": "Explica el rango de edad por curso.",
-    "Consultar_Duracion":       "Menciona la duración de cada curso.",
+    "Consultar_Duracion": (
+    "Explica que cada clase tiene una duración de 90 minutos y se imparte una vez por semana. "
+    "Menciona que el cliente puede elegir inscribir a su hijo en más de una sesión semanal "
+    "si desea mayor frecuencia. "
+    "NO inventes horarios ni días específicos, esos se coordinan con la academia. "
+    "Invita a preguntar sobre horarios disponibles."),
 }
 
 def construir_prompt(intencion, datos, config, sentimiento):
@@ -320,8 +336,7 @@ def construir_prompt_rag(contexto_pdf, config, sentimiento):
         f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
         f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
         f"Usa solo esta info para responder:\n{contexto_pdf}\n"
-        f"Si no tienes el dato, invita a contactar por WhatsApp: {whatsapp}.\n"
-        f"Termina con una pregunta."
+        f"Termina con una pregunta para seguir la conversación."
     )
 
 
