@@ -285,7 +285,7 @@ TONO_MAP = {
 
 INSTRUCCIONES = {
     "Saludo":                   "Saluda calurosamente, preséntate como asistente de {academia} y pregunta en qué puedes ayudar.",
-    "Despedida":                "Despídete amablemente. Termina SIEMPRE con: '¡Te esperamos en Goku Lab! 🎮\nJuega, Aprende y Emprende'",
+    "Despedida":                "Despídete amablemente. Termina SIEMPRE con: '¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'",
     "Desconocido":              "No entendiste la consulta. Discúlpate y pide que la reformule.",
     "Consultar_Cursos":         "Menciona los cursos disponibles con nombre y descripción breve (máximo dos líneas). Sé conversacional.",
     "Consultar_Costos": (
@@ -316,7 +316,7 @@ INSTRUCCIONES = {
 }
 
 def construir_prompt(intencion, datos, config, sentimiento):
-    academia = config.get("nombre_academia", "Goku Lab")
+    academia = config.get("nombre_academia", "Gōku Lab")
     instruccion = INSTRUCCIONES.get(intencion, f"Responde sobre: {intencion}").replace("{academia}", academia)
 
     return (
@@ -329,7 +329,7 @@ def construir_prompt(intencion, datos, config, sentimiento):
 
 
 def construir_prompt_rag(contexto_pdf, config, sentimiento):
-    academia = config.get("nombre_academia", "Goku Lab")
+    academia = config.get("nombre_academia", "Gōku Lab")
     whatsapp = config.get("whatsapp", "")
 
     return (
