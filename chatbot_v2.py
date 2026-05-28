@@ -285,7 +285,11 @@ TONO_MAP = {
 
 INSTRUCCIONES = {
     "Saludo":                   "Saluda calurosamente, preséntate como asistente de {academia} y pregunta en qué puedes ayudar.",
-    "Despedida":                "Despídete amablemente. Termina SIEMPRE con: '¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'",
+    "Despedida": (
+    "El usuario se está despidiendo. "
+    "Despídete de forma breve y amable, NO hagas más preguntas. "
+    "NO menciones números de teléfono, WhatsApp ni correos. "
+    "Termina SIEMPRE con: '¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'"),
     "Desconocido":              "No entendiste la consulta. Discúlpate y pide que la reformule.",
     "Consultar_Cursos":         "Menciona los cursos disponibles con nombre y descripción breve (máximo dos líneas). Sé conversacional.",
     "Consultar_Costos": (
@@ -325,6 +329,8 @@ def construir_prompt(intencion, datos, config, sentimiento):
         f"Tarea: {instruccion}\n"
         f"Datos: {datos}\n"
         f"Reglas: No inventes info. Máximo 2 oraciones. Sin viñetas. Termina con una pregunta."
+        f"Si el usuario se despide NO hagas preguntas. " 
+        f"Termina con una pregunta SOLO si NO es despedida." 
     )
 
 
@@ -336,7 +342,9 @@ def construir_prompt_rag(contexto_pdf, config, sentimiento):
         f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
         f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
         f"Usa solo esta info para responder:\n{contexto_pdf}\n"
-        f"Termina con una pregunta para seguir la conversación."
+        f"Si el usuario se despide NO hagas preguntas" 
+        f"Termina con una pregunta SOLO si NO es despedida" 
+
     )
 
 
