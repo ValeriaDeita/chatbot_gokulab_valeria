@@ -327,7 +327,7 @@ def construir_prompt(intencion, datos, config, sentimiento):
         f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
         f"Tarea: {instruccion}\n"
         f"Datos: {datos}\n"
-        f"Reglas: No inventes info. MÁXIMO 2 oraciones. Sin viñetas. Termina con una pregunta."
+        f"Reglas: No inventes info. MÁXIMO 1 oración. Sin viñetas. Termina con una pregunta."
         f"Si el usuario hace más de una pregunta y tienes los datos, responde ambas"
         f"Si el usuario se despide NO hagas preguntas. "
         f"Termina con una pregunta SOLO si NO es despedida."
