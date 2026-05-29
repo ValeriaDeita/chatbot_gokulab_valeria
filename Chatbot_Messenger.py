@@ -359,7 +359,7 @@ def llamar_groq(messages):
             cliente = Groq(api_key=key)
             respuesta = cliente.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                max_tokens=150,
+                max_tokens=100,
                 temperature=0.7,
                 messages=messages
             )
@@ -370,10 +370,6 @@ def llamar_groq(messages):
     return RESPUESTA_FALLBACK
 
 
-# ─────────────────────────────────────────────────────────────
-# LÓGICA COMPARTIDA: genera la respuesta del chatbot
-# Reutilizada tanto por /chat como por el webhook de Messenger
-# ─────────────────────────────────────────────────────────────
 def generar_respuesta(mensaje, numero="anonimo", canal="web"):
     es_valido, motivo = validar_entrada(mensaje)
     if not es_valido:
@@ -445,12 +441,14 @@ def index():
 # WEBHOOK DE MESSENGER
 # ─────────────────────────────────────────────────────────────
 
-def enviar_mensaje_messenger(recipient_id, texto):
-    """Envía un mensaje de texto al usuario de Messenger."""
+def enviar_mensaje_messenger(recipient_id, texto, quick_replies=None):
     url = f"https://graph.facebook.com/v19.0/me/messages?access_token={PAGE_ACCESS_TOKEN}"
+    mensaje = {"text": texto}
+    if quick_replies:
+        mensaje["quick_replies"] = quick_replies
     payload = {
         "recipient": {"id": recipient_id},
-        "message":   {"text": texto},
+        "message": mensaje,
     }
     try:
         r = http_requests.post(url, json=payload, timeout=10)
@@ -458,6 +456,23 @@ def enviar_mensaje_messenger(recipient_id, texto):
             print(f"Error Messenger API: {r.status_code} — {r.text}")
     except Exception as e:
         print(f"Excepción enviando a Messenger: {e}")
+
+
+def enviar_bienvenida(recipient_id):
+    quick_replies = [
+        {"content_type": "text", "title": "💰 Costos",        "payload": "¿Cuánto cuestan los cursos?"},
+        {"content_type": "text", "title": "📚 Cursos",        "payload": "¿Qué cursos tienen disponibles?"},
+        {"content_type": "text", "title": "🕐 Horarios",      "payload": "¿Qué horarios manejan?"},
+        {"content_type": "text", "title": "📍 Ubicación",     "payload": "¿Dónde están ubicados?"},
+        {"content_type": "text", "title": "🎓 Certificación", "payload": "¿Dan certificado?"},
+        {"content_type": "text", "title": "🎯 Clase demo",    "payload": "¿Tienen clase de prueba?"},
+        {"content_type": "text", "title": "💳 Pagos",         "payload": "¿Cuáles son las formas de pago?"},
+    ]
+    enviar_mensaje_messenger(
+        recipient_id,
+        "¡Hola! 👋 Soy Gōku, tu asistente virtual de Gōku Lab. ¿En qué te puedo ayudar?",
+        quick_replies=quick_replies,
+    )
 
 
 @app.route("/webhook", methods=["GET"])
@@ -477,24 +492,33 @@ def webhook_verificacion():
 
 @app.route("/webhook", methods=["POST"])
 def webhook_mensajes():
-    """Recibe los mensajes entrantes de Messenger."""
     data = request.json
 
     if data.get("object") == "page":
         for entry in data.get("entry", []):
             for event in entry.get("messaging", []):
 
-                # Ignorar eventos que no sean mensajes de texto
+                sender_id = event["sender"]["id"]
+
+                # Botón "Comenzar" → saludo con quick replies
+                if "postback" in event:
+                    if event["postback"].get("payload") == "GET_STARTED":
+                        enviar_bienvenida(sender_id)
+                    continue
+
                 if "message" not in event:
                     continue
-                if "text" not in event["message"]:
-                    continue
-                # Ignorar eco de mensajes propios
                 if event["message"].get("is_echo"):
                     continue
 
-                sender_id     = event["sender"]["id"]
-                texto_usuario = event["message"]["text"]
+                # Si tocó un quick reply, usar su payload como texto
+                if "quick_reply" in event["message"]:
+                    texto_usuario = event["message"]["quick_reply"]["payload"]
+                else:
+                    texto_usuario = event["message"].get("text", "")
+
+                if not texto_usuario:
+                    continue
 
                 print(f"[Messenger] De {sender_id}: {texto_usuario}")
 
@@ -504,9 +528,17 @@ def webhook_mensajes():
                     canal="messenger",
                 )
 
-                enviar_mensaje_messenger(sender_id, respuesta)
+                quick_replies = [
+                    {"content_type": "text", "title": "💰 Costos",        "payload": "¿Cuánto cuestan los cursos?"},
+                    {"content_type": "text", "title": "📚 Cursos",        "payload": "¿Qué cursos tienen disponibles?"},
+                    {"content_type": "text", "title": "🕐 Horarios",      "payload": "¿Qué horarios manejan?"},
+                    {"content_type": "text", "title": "📍 Ubicación",     "payload": "¿Dónde están ubicados?"},
+                    {"content_type": "text", "title": "🎓 Certificación", "payload": "¿Dan certificado?"},
+                    {"content_type": "text", "title": "🎯 Clase demo",    "payload": "¿Tienen clase de prueba?"},
+                    {"content_type": "text", "title": "💳 Pagos",         "payload": "¿Cuáles son las formas de pago?"},
+                ]
+                enviar_mensaje_messenger(sender_id, respuesta, quick_replies)
 
-    # Meta exige responder 200 rápido, aunque algo falle internamente
     return "OK", 200
 
 
