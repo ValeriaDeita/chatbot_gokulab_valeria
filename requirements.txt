@@ -12,5 +12,6 @@ vaderSentiment
 pdfplumber
 twilio 
 gunicorn
+requests
 
 
