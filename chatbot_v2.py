@@ -368,10 +368,7 @@ INSTRUCCIONES = {
     ),
     "Desconocido":             "No entendiste la consulta. Discúlpate y pide que la reformule.",
     "Consultar_Cursos":        "Menciona los cursos disponibles con nombre y descripción breve (máximo dos líneas). Sé conversacional.",
-    "Consultar_Costos": (
-        "Da una idea general del rango de costos si está disponible. "
-        "NO inventes precios exactos. NO menciones WhatsApp ni correos."
-    ),
+    "Consultar_Costos": "Da el rango de costos en UNA sola oración muy breve. NO inventes precios exactos. NO menciones WhatsApp ni correos.",
     "Consultar_Horarios":      "Presenta los horarios por curso de forma clara.",
     "Consultar_Ubicacion":     "Da la dirección, referencias y link de Maps.",
     "Consultar_Modalidad":     "Explica si las clases son presenciales, online o híbridas por curso.",
@@ -495,6 +492,19 @@ def chat():
                 mensaje_original    = estado.get("mensaje_original", "")
 
         if esperando_numero:
+            # Verificar si el mensaje parece un número de teléfono
+            solo_numeros = re.sub(r"[\s\-\(\)\+]", "", mensaje)
+            es_numero = solo_numeros.isdigit() and len(solo_numeros) >= 8
+
+            if not es_numero:
+                # No parece número, volver a pedir
+                return jsonify({
+                    "intencion":   "esperando_numero",
+                    "confianza":   "100%",
+                    "sentimiento": "neutral",
+                    "respuesta":   "Para conectarte con nuestro equipo necesito tu número de WhatsApp. ¿Me lo compartes? 😊",
+                })
+
             numero_dado = mensaje
 
             # Notificar a Marco por Telegram
@@ -525,12 +535,12 @@ def chat():
                 "confianza":   "100%",
                 "sentimiento": "neutral",
                 "respuesta": (
-                    "¡Listo! Le compartí tu número a nuestro equipo. "
-                    "Se pondrá en contacto contigo muy pronto. "
+                    "¡Listo! 🎉 Le compartí tu número a nuestro equipo. "
+                    "Marco se pondrá en contacto contigo muy pronto. "
                     "¿Hay algo más en lo que pueda ayudarte?"
                 ),
             })
-    
+
         # 3. Sentimiento ────────────────────────────────────
         sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
 
@@ -567,8 +577,7 @@ def chat():
                 "sentimiento": sentimiento,
                 "respuesta": (
                     f"{respuesta_parcial}\n\n"
-                    "¿me compartes tu número de WhatsApp para info. personalizada?"
-                    "Un miembro de nuestro equipo te contactará pronto. 😊"
+                    "¿Me compartes tu número de WhatsApp para darte info personalizada? 😊"
                 ),
             })
 
@@ -628,8 +637,6 @@ def chat():
         })
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         print(f"Error inesperado en /chat: {e}")
         return jsonify({"respuesta": RESPUESTA_FALLBACK}), 200
 
@@ -660,14 +667,8 @@ def health():
         "timestamp":       datetime.now().isoformat(),
     }), 200
 
-@app.route("/modelo_intents.pkl")
-def descargar_modelo():
-    return send_file("modelo_intents.pkl")
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
-
-
