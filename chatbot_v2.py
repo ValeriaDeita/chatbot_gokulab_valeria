@@ -661,6 +661,10 @@ def health():
         "timestamp":       datetime.now().isoformat(),
     }), 200
 
+@app.route("/modelo_intents.pkl")
+def descargar_modelo():
+    return send_file("modelo_intents.pkl")
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
