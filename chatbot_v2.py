@@ -264,9 +264,8 @@ def obtener_datos_por_intencion(intencion):
 # ─────────────────────────────────────────────
 
 ETIQUETAS_INTENCION = {
-    "Consultar_Costos":     "💰 Consulta de precios",
-    "Consultar_ClaseDemo":  "🎮 Clase demo / Master Class",
-    "Consultar_FormasPago": "💳 Formas de pago",
+    "Consultar_Costos":     "Consulta de precios",
+    "Consultar_ClaseDemo":  "Clase demo / Master Class",
 }
 
 def notificar_marco(numero_usuario, intencion, mensaje_original):
@@ -281,9 +280,9 @@ def notificar_marco_con_contexto(numero_usuario, intencion, mensaje_original, co
 
     texto = (
         f"🔔 *Nuevo lead — Gōku Lab*\n\n"
-        f"📌 Tema: {tema}\n"
-        f"📱 Contacto: `{numero_usuario}`\n"
-        f"💬 Consultó: _{mensaje_original}_"
+        f"Tema: {tema}\n"
+        f"contacto: `{numero_usuario}`\n"
+        f"¿Qué consultó?: _{mensaje_original}_"
     )
 
     if contexto:
@@ -307,14 +306,9 @@ def notificar_marco_con_contexto(numero_usuario, intencion, mensaje_original, co
         print(f"Error enviando notificación Telegram: {e}")
 
 
-# ─────────────────────────────────────────────
-# INTENCIONES QUE REQUIEREN ATENCIÓN HUMANA
-# ─────────────────────────────────────────────
-
 INTENCIONES_REQUIEREN_HUMANO = {
     "Consultar_Costos",
     "Consultar_ClaseDemo",
-    "Consultar_FormasPago",
 }
 
 # ─────────────────────────────────────────────
@@ -368,9 +362,10 @@ INSTRUCCIONES = {
     "Saludo": "Saluda calurosamente, preséntate como asistente de {academia} y pregunta en qué puedes ayudar.",
     "Despedida": (
         "El usuario se está despidiendo. "
-        "Despídete de forma breve y amable, NO hagas más preguntas. "
-        "NO menciones números de teléfono, WhatsApp ni correos. "
-        "Termina SIEMPRE con: '¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'"
+        "Despídete de forma breve y amable. "
+        "NO hagas preguntas. NO menciones teléfono, WhatsApp ni correos. "
+        "Tu respuesta DEBE terminar EXACTAMENTE con esta frase, sin cambiarla: "
+        "'¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'"
     ),
     "Desconocido":             "No entendiste la consulta. Discúlpate y pide que la reformule.",
     "Consultar_Cursos":        "Menciona los cursos disponibles con nombre y descripción breve (máximo dos líneas). Sé conversacional.",
@@ -437,7 +432,7 @@ def llamar_groq(messages):
             cliente = Groq(api_key=key)
             respuesta = cliente.chat.completions.create(
                 model="llama-3.3-70b-versatile",
-                max_tokens=150,
+                max_tokens=120,
                 temperature=0.7,
                 messages=messages,
             )
@@ -513,7 +508,6 @@ def chat():
 
             numero_dado = mensaje
 
-            # Obtener historial reciente para dar más contexto a Marco
             contexto_conversacion = ""
             if coleccion is not None:
                 historial_lead = list(
@@ -531,10 +525,9 @@ def chat():
             # Notificar a Marco por Telegram con contexto
             notificar_marco_con_contexto(numero_dado, intencion_pendiente, mensaje_original, contexto_conversacion)
 
-            # Limpiar estado
             db["estados"].delete_one({"numero": numero})
 
-            # Guardar en historial
+    
             if coleccion is not None:
                 try:
                     coleccion.insert_one({
@@ -556,7 +549,7 @@ def chat():
                 "confianza":   "100%",
                 "sentimiento": "neutral",
                 "respuesta": (
-                    "¡Listo! 🎉 Nuestro equipo se pondrá en contacto contigo muy pronto. "
+                    "¡Listo! Nuestro equipo se pondrá en contacto contigo muy pronto. "
                     "¿Hay algo más en lo que pueda ayudarte?"
                 ),
             })
@@ -570,7 +563,7 @@ def chat():
         # 5. ¿Esta intención requiere atención humana? ──────
         if intencion in INTENCIONES_REQUIEREN_HUMANO:
 
-            # ¿Ya dio su número antes en esta conversación?
+
             ya_dio_numero = False
             if coleccion is not None:
                 captura_previa = coleccion.find_one({
@@ -581,7 +574,6 @@ def chat():
                     ya_dio_numero = True
 
             if ya_dio_numero:
-                # Ya tenemos su número, solo responder normalmente sin pedir de nuevo
                 datos  = obtener_datos_por_intencion(intencion)
                 config = datos.get("config") or {}
                 respuesta_directa = llamar_groq([
@@ -595,7 +587,6 @@ def chat():
                     "respuesta":   respuesta_directa,
                 })
 
-            # Guardar estado: esperamos el número en el siguiente mensaje
             if db is not None:
                 db["estados"].replace_one(
                     {"numero": numero},
@@ -608,7 +599,6 @@ def chat():
                     upsert=True,
                 )
 
-            # Dar respuesta parcial con la info disponible + pedir número
             datos  = obtener_datos_por_intencion(intencion)
             config = datos.get("config") or {}
 
@@ -623,7 +613,7 @@ def chat():
                 "sentimiento": sentimiento,
                 "respuesta": (
                     f"{respuesta_parcial}\n\n"
-                    "¿Me compartes tu número de WhatsApp para darte info personalizada? 😊"
+                    "¿Me compartes tu número de WhatsApp para darte info personalizada?"
                 ),
             })
 
