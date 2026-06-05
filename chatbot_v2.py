@@ -530,7 +530,7 @@ def chat():
                     "¿Hay algo más en lo que pueda ayudarte?"
                 ),
             })
-
+    
         # 3. Sentimiento ────────────────────────────────────
         sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
 
@@ -629,6 +629,8 @@ def chat():
         })
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"Error inesperado en /chat: {e}")
         return jsonify({"respuesta": RESPUESTA_FALLBACK}), 200
 
