@@ -525,8 +525,8 @@ def chat():
                 "confianza":   "100%",
                 "sentimiento": "neutral",
                 "respuesta": (
-                    "¡Listo! 🎉 Le compartí tu número a nuestro equipo. "
-                    "Marco se pondrá en contacto contigo muy pronto. "
+                    "¡Listo! Le compartí tu número a nuestro equipo. "
+                    "Se pondrá en contacto contigo muy pronto. "
                     "¿Hay algo más en lo que pueda ayudarte?"
                 ),
             })
