@@ -518,7 +518,7 @@ def chat():
                         lineas.append(f"Bot: {h['respuesta']}")
                     contexto_conversacion = "\n".join(lineas)
 
-            # Notificar a Marco por Telegram con contexto
+            #
             notificar_marco_con_contexto(numero_dado, intencion_pendiente, mensaje_original, contexto_conversacion)
 
             db["estados"].delete_one({"numero": numero})
@@ -527,7 +527,7 @@ def chat():
             if coleccion is not None:
                 try:
                     coleccion.insert_one({
-                        "numero":      numero,
+                        "numero":      numero_dado,
                         "mensaje":     f"[número capturado] {numero_dado}",
                         "intencion":   "captura_numero",
                         "confianza":   1.0,
