@@ -270,6 +270,9 @@ ETIQUETAS_INTENCION = {
 }
 
 def notificar_marco(numero_usuario, intencion, mensaje_original):
+    notificar_marco_con_contexto(numero_usuario, intencion, mensaje_original, "")
+
+def notificar_marco_con_contexto(numero_usuario, intencion, mensaje_original, contexto):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         print("Telegram no configurado, notificación omitida.")
         return
@@ -282,6 +285,9 @@ def notificar_marco(numero_usuario, intencion, mensaje_original):
         f"📱 Contacto: `{numero_usuario}`\n"
         f"💬 Consultó: _{mensaje_original}_"
     )
+
+    if contexto:
+        texto += f"\n\n📋 *Conversación previa:*\n{contexto}"
 
     try:
         resp = requests.post(
@@ -507,8 +513,23 @@ def chat():
 
             numero_dado = mensaje
 
-            # Notificar a Marco por Telegram
-            notificar_marco(numero_dado, intencion_pendiente, mensaje_original)
+            # Obtener historial reciente para dar más contexto a Marco
+            contexto_conversacion = ""
+            if coleccion is not None:
+                historial_lead = list(
+                    coleccion.find({"numero": numero}, {"_id": 0, "mensaje": 1, "respuesta": 1})
+                    .sort("timestamp", -1)
+                    .limit(4)
+                )
+                if historial_lead:
+                    lineas = []
+                    for h in reversed(historial_lead):
+                        lineas.append(f"Usuario: {h['mensaje']}")
+                        lineas.append(f"Bot: {h['respuesta']}")
+                    contexto_conversacion = "\n".join(lineas)
+
+            # Notificar a Marco por Telegram con contexto
+            notificar_marco_con_contexto(numero_dado, intencion_pendiente, mensaje_original, contexto_conversacion)
 
             # Limpiar estado
             db["estados"].delete_one({"numero": numero})
@@ -524,7 +545,7 @@ def chat():
                         "sentimiento": "neutral",
                         "score_sent":  0.0,
                         "uso_rag":     False,
-                        "respuesta":   "Número enviado a Marco.",
+                        "respuesta":   "Número enviado al equipo.",
                         "timestamp":   datetime.now(),
                     })
                 except Exception as mongo_err:
@@ -535,8 +556,7 @@ def chat():
                 "confianza":   "100%",
                 "sentimiento": "neutral",
                 "respuesta": (
-                    "¡Listo! 🎉 Le compartí tu número a nuestro equipo. "
-                    "Marco se pondrá en contacto contigo muy pronto. "
+                    "¡Listo! 🎉 Nuestro equipo se pondrá en contacto contigo muy pronto. "
                     "¿Hay algo más en lo que pueda ayudarte?"
                 ),
             })
@@ -549,15 +569,41 @@ def chat():
 
         # 5. ¿Esta intención requiere atención humana? ──────
         if intencion in INTENCIONES_REQUIEREN_HUMANO:
+
+            # ¿Ya dio su número antes en esta conversación?
+            ya_dio_numero = False
+            if coleccion is not None:
+                captura_previa = coleccion.find_one({
+                    "numero":    numero,
+                    "intencion": "captura_numero",
+                })
+                if captura_previa:
+                    ya_dio_numero = True
+
+            if ya_dio_numero:
+                # Ya tenemos su número, solo responder normalmente sin pedir de nuevo
+                datos  = obtener_datos_por_intencion(intencion)
+                config = datos.get("config") or {}
+                respuesta_directa = llamar_groq([
+                    {"role": "system", "content": construir_prompt(intencion, datos, config, sentimiento)},
+                    {"role": "user",   "content": mensaje},
+                ])
+                return jsonify({
+                    "intencion":   intencion,
+                    "confianza":   f"{confianza:.0%}",
+                    "sentimiento": sentimiento,
+                    "respuesta":   respuesta_directa,
+                })
+
             # Guardar estado: esperamos el número en el siguiente mensaje
             if db is not None:
                 db["estados"].replace_one(
                     {"numero": numero},
                     {
-                        "numero":             numero,
-                        "esperando_numero":   True,
+                        "numero":              numero,
+                        "esperando_numero":    True,
                         "intencion_pendiente": intencion,
-                        "mensaje_original":   mensaje,
+                        "mensaje_original":    mensaje,
                     },
                     upsert=True,
                 )
