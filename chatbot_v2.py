@@ -567,8 +567,7 @@ def chat():
                 "sentimiento": sentimiento,
                 "respuesta": (
                     f"{respuesta_parcial}\n\n"
-                    "Para darte información más detallada y personalizada, "
-                    "¿me compartes tu número de WhatsApp? "
+                    "¿me compartes tu número de WhatsApp para info. personalizada?"
                     "Un miembro de nuestro equipo te contactará pronto. 😊"
                 ),
             })
@@ -670,3 +669,5 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
+
+
