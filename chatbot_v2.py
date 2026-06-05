@@ -259,10 +259,6 @@ def obtener_datos_por_intencion(intencion):
     return {"config": config_mini}
 
 
-# ─────────────────────────────────────────────
-# TELEGRAM — NOTIFICAR A MARCO
-# ─────────────────────────────────────────────
-
 ETIQUETAS_INTENCION = {
     "Consultar_Costos":     "Consulta de precios",
     "Consultar_ClaseDemo":  "Clase demo / Master Class",
