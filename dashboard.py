@@ -38,13 +38,13 @@ st.markdown("""
     .metric-value {
         font-family: 'Space Mono', monospace;
         font-size: 2.2rem;
-        font-weight: 700;
+        font-weight: 800;
         color: #00AEEF;
         line-height: 1;
     }
     .metric-label {
         font-size: 0.78rem;
-        color: #888;
+        color:#444444;
         margin-top: 0.4rem;
         text-transform: uppercase;
         letter-spacing: 0.08em;
@@ -213,9 +213,7 @@ if not incluir_ruido:
 
 df_consultas = df[~df["intencion"].isin(EXCLUIR)]
 
-# ─────────────────────────────────────────────
-# MÉTRICAS PRINCIPALES
-# ─────────────────────────────────────────────
+
 
 st.markdown('<p class="section-title">Resumen general</p>', unsafe_allow_html=True)
 
@@ -314,9 +312,6 @@ with col_der:
         fig_donut.update_traces(textfont_color="white")
         st.plotly_chart(fig_donut, use_container_width=True)
 
-# ─────────────────────────────────────────────
-# FILA 2 — MENSAJES POR HORA + RAG vs CLF
-# ─────────────────────────────────────────────
 
 col_a, col_b = st.columns([3, 2])
 
@@ -375,9 +370,7 @@ with col_b:
         fig_rag.update_traces(textfont_color="white")
         st.plotly_chart(fig_rag, use_container_width=True)
 
-# ─────────────────────────────────────────────
-# CONFIANZA PROMEDIO POR INTENCIÓN
-# ─────────────────────────────────────────────
+
 
 st.markdown('<p class="section-title">Confianza promedio por intención</p>', unsafe_allow_html=True)
 
@@ -416,9 +409,6 @@ if not df_consultas.empty:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────
-# HEATMAP — hora × día de la semana
-# ─────────────────────────────────────────────
 
 st.markdown('<p class="section-title">Heatmap de actividad — hora vs día</p>', unsafe_allow_html=True)
 
@@ -449,10 +439,10 @@ if not df.empty:
     pivot = pivot.sort_values(["dia_semana", "hora"])
 
     colorscale_heat = [
-        [0.00, "#0f0f0f"],
-        [0.20, "#003D6B"],
-        [0.50, "#00AEEF"],
-        [0.80, "#F5A800"],
+        [0.00, "#F4F6F9"],  # Cero actividad: Gris/azul muy claro (en vez de negro)
+        [0.20, "#B3E5FC"],  # Actividad baja: Azul tierno
+        [0.50, "#00AEEF"],  # Actividad media: Azul Goku
+        [0.80, "#F5A800"],  # Actividad alta: Amarillo/Naranja
         [1.00, "#E63329"],
     ]
 
@@ -465,8 +455,8 @@ if not df.empty:
         hoverongaps=False,
         hovertemplate="<b>%{x}</b><br>%{y}<br>%{z:.0f} consultas<extra></extra>",
         colorbar=dict(
-            title=dict(text="Consultas", font=dict(color="#888", size=11)),
-            tickfont=dict(color="#888", size=10),
+            title=dict(text="Consultas", font=dict(color="#333", size=11)),
+            tickfont=dict(color="#333", size=10),
             thickness=12,
             len=0.8,
         ),
@@ -475,7 +465,7 @@ if not df.empty:
     ))
     fig_heat.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#1a1a1a",
+        plot_bgcolor="#F4F6F9",
         margin=dict(l=0, r=0, t=0, b=0),
         height=420,
         xaxis=dict(
@@ -487,9 +477,9 @@ if not df.empty:
         yaxis=dict(
             title="Hora",
             autorange="reversed",
-            tickfont=dict(color="#888", size=10),
+            tickfont=dict(color="#333", size=10),
             dtick=2,
-            gridcolor="rgba(255,255,255,0.04)",
+            gridcolor="rgba(0,0,0,0.05)",
         ),
         font=dict(family="DM Sans", color="#aaa"),
     )
