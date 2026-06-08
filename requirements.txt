@@ -13,5 +13,9 @@ twilio
 gunicorn
 requests
 scikit-learn==1.9.0
+streamlit
+plotly
+streamlit-autorefresh
+
 
 
