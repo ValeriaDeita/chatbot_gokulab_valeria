@@ -14,16 +14,11 @@ from streamlit_autorefresh import st_autorefresh
 # ─────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Gōku Lab · Dashboard",
+    page_title="Gōku Lab",
     page_icon="🎮",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# ─────────────────────────────────────────────
-# ESTILOS  — dark theme con colores del chatbot
-# #00AEEF azul · #F5A800 amarillo · #E63329 rojo
-# ─────────────────────────────────────────────
 
 st.markdown("""
 <style>
@@ -34,8 +29,8 @@ st.markdown("""
     .block-container { padding: 2rem 2.5rem; }
 
     .metric-card {
-        background: #1a1a1a;
-        border: 1px solid #2a2a2a;
+        background: #E1F5FE;
+        border: 1px solid #B3E5FC;
         border-radius: 12px;
         padding: 1.25rem 1.5rem;
         text-align: center;
@@ -85,24 +80,17 @@ st.markdown("""
 
 st_autorefresh(interval=60_000, key="autorefresh")
 
-# ─────────────────────────────────────────────
-# CONEXIÓN MONGODB
-# ─────────────────────────────────────────────
 
 @st.cache_resource
 def conectar_mongo():
     uri = os.getenv("MONGO_URI") or st.secrets.get("MONGO_URI")
     if not uri:
-        st.error("❌ No se encontró MONGO_URI. Agrégala en secrets o como variable de entorno.")
+        st.error("No se encontró MONGO_URI. Agrégala en secrets o como variable de entorno.")
         st.stop()
     client = MongoClient(uri, serverSelectionTimeoutMS=5000)
     return client["chatbot_Goku_lab"]
 
 db = conectar_mongo()
-
-# ─────────────────────────────────────────────
-# CARGA DE DATOS
-# ─────────────────────────────────────────────
 
 @st.cache_data(ttl=60)
 def cargar_datos():
@@ -124,13 +112,12 @@ def cargar_datos():
 
 df_raw = cargar_datos()
 
-# ─────────────────────────────────────────────
-# CONSTANTES
-# ─────────────────────────────────────────────
 
-EXCLUIR = ["Saludo", "Despedida", "captura_numero"]
+EXCLUIR = ["captura_numero"]
 
 COLORES = {
+    "Saludo":                   "#00EF34",
+    "Despedida":                "#E63329",
     "Consultar_Cursos":         "#00AEEF",
     "Consultar_Costos":         "#E63329",
     "Consultar_Horarios":       "#4ecdc4",
@@ -162,15 +149,12 @@ PATRONES_NO_SABE = [
     "no encuentro información",
 ]
 
-# ─────────────────────────────────────────────
-# HEADER
-# ─────────────────────────────────────────────
 
 col_logo, col_titulo, col_update = st.columns([1, 6, 2])
 with col_logo:
     st.markdown("## 🎮")
 with col_titulo:
-    st.markdown("# Gōku Lab · Dashboard operativo")
+    st.markdown("# Gōku Lab ")
     st.markdown(
         "<p style='color:#555; font-size:0.8rem; margin-top:-12px'>Chatbot · Atención académica</p>",
         unsafe_allow_html=True,
@@ -184,9 +168,6 @@ with col_update:
 
 st.divider()
 
-# ─────────────────────────────────────────────
-# SIDEBAR — FILTROS
-# ─────────────────────────────────────────────
 
 with st.sidebar:
     st.markdown("### 🎛️ Filtros")
@@ -214,9 +195,6 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-# ─────────────────────────────────────────────
-# APLICAR FILTROS
-# ─────────────────────────────────────────────
 
 if df_raw.empty:
     st.warning("No hay datos en la colección todavía.")
@@ -250,10 +228,10 @@ usuarios_uniq  = df["numero"].nunique() if not df.empty else 0
 c1, c2, c3, c4, c5 = st.columns(5)
 for col, valor, label, color in [
     (c1, total_msgs,              "mensajes totales",    "#00AEEF"),
-    (c2, usuarios_uniq,           "usuarios únicos",     "#00AEEF"),
+    (c2, usuarios_uniq,           "usuarios únicos",     "#EFEF00"),
     (c3, total_leads,             "leads capturados",    "#F5A800"),
     (c4, f"{tasa_rag:.1f}%",      "tasa RAG fallback",   "#E63329"),
-    (c5, f"{confianza_prom:.1f}%","confianza promedio",  "#00AEEF"),
+    (c5, f"{confianza_prom:.1f}%","confianza promedio",  "#EFE700"),
 ]:
     with col:
         st.markdown(
@@ -266,9 +244,6 @@ for col, valor, label, color in [
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────
-# FILA 1 — INTENCIONES + SENTIMIENTOS
-# ─────────────────────────────────────────────
 
 col_izq, col_der = st.columns([3, 2])
 
