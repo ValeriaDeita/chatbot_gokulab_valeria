@@ -541,7 +541,7 @@ def chat():
                     print(f"No se pudo guardar en MongoDB: {mongo_err}")
 
             return jsonify({
-                "intencion":   "captura_numero",
+             A   "intencion":   "captura_numero",
                 "confianza":   "100%",
                 "sentimiento": "neutral",
                 "respuesta": (
