@@ -454,6 +454,7 @@ if not df_tabla.empty:
             "sentimiento":"Sentimiento",
             "confianza":  "Confianza",
             "uso_rag":    "RAG",
+            "respueta":   "Respuesta del bot",
         }),
         use_container_width=True,
         height=350,
