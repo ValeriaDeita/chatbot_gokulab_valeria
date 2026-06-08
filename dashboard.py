@@ -9,9 +9,6 @@ from datetime import datetime
 from pymongo import MongoClient
 from streamlit_autorefresh import st_autorefresh
 
-# ─────────────────────────────────────────────
-# CONFIGURACIÓN DE PÁGINA
-# ─────────────────────────────────────────────
 
 st.set_page_config(
     page_title="Gōku Lab",
@@ -74,9 +71,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────
-# AUTO REFRESCO (cada 60 segundos)
-# ─────────────────────────────────────────────
 
 st_autorefresh(interval=60_000, key="autorefresh")
 
@@ -156,7 +150,7 @@ with col_logo:
 with col_titulo:
     st.markdown("# Gōku Lab ")
     st.markdown(
-        "<p style='color:#555; font-size:0.8rem; margin-top:-12px'>Chatbot · Atención académica</p>",
+        "<p style='color:#555; font-size:0.8rem; margin-top:-12px'>Chatbot</p>",
         unsafe_allow_html=True,
     )
 with col_update:
@@ -405,7 +399,7 @@ if not df_consultas.empty:
         font=dict(family="DM Sans", color="#aaa"),
     )
     st.plotly_chart(fig_conf, use_container_width=True)
-    st.caption("🔴 < 60%  necesita más datos de entrenamiento  ·  🟡 60-80%  aceptable  ·  🔵 > 80%  excelente")
+    st.caption("🔴 < 60%  ·  🟡 60-80%  ·  🔵 > 80%")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
@@ -484,7 +478,7 @@ if not df.empty:
         font=dict(family="DM Sans", color="#aaa"),
     )
     st.plotly_chart(fig_heat, use_container_width=True)
-    st.caption("Negro = sin actividad · Azul = actividad normal · Amarillo/Rojo = hora pico")
+    st.caption("negro =sin actividad · azul = actividad normal · amarillo/Rojo = hora pico")
 
 else:
     st.info("Sin datos suficientes para el heatmap.")
@@ -565,7 +559,6 @@ if not df_consultas.empty and "sentimiento" in df_consultas.columns:
             showlegend=False,
         )
         st.plotly_chart(fig_neg, use_container_width=True)
-        st.caption("% de mensajes con sentimiento negativo dentro de cada intención · prioriza las más altas para mejorar las respuestas")
     else:
         st.success("Sin mensajes negativos registrados en el período seleccionado.")
 
@@ -655,8 +648,7 @@ if not df_raw.empty and "respuesta" in df_raw.columns:
             height=320,
             hide_index=True,
         )
-        st.caption(f"{total_sin} mensajes sin cobertura · descarga para agregar al dataset de entrenamiento")
-
+       
         csv_sin = (
             df_tabla_sin[columnas_mostrar]
             .rename(columns=renombrar)
@@ -664,7 +656,7 @@ if not df_raw.empty and "respuesta" in df_raw.columns:
             .encode("utf-8")
         )
         st.download_button(
-            label="⬇️  Descargar mensajes sin cobertura (.csv)",
+            label="descargar mensajes sin cobertura (.csv)",
             data=csv_sin,
             file_name="mensajes_sin_cobertura.csv",
             mime="text/csv",
@@ -718,6 +710,5 @@ if not df_tabla.empty:
         height=350,
         hide_index=True,
     )
-    st.caption(f"{len(df_tabla)} mensajes · haz click en una barra arriba para filtrar automáticamente")
 else:
     st.info("Sin mensajes para esta selección.")
