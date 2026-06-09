@@ -2,5 +2,6 @@
 intencione.xlsx
 __pycache__/
 chat_sin_cambios.html
+Chatbot_WhatsApp.py
 *.pyc
 
