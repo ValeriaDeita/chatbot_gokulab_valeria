@@ -20,15 +20,10 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from flask_cors import CORS
 import pdfplumber
 
-# ─────────────────────────────────────────────
-# SETUP INICIAL
-# ─────────────────────────────────────────────
-
 nltk.download("stopwords", quiet=True)
 nltk.download("punkt_tab", quiet=True)
 load_dotenv()
 
-# ─── Conexión MongoDB ───────────────────────
 try:
     client_mongo = MongoClient(os.getenv("MONGO_URI"), serverSelectionTimeoutMS=5000)
     client_mongo.server_info()
@@ -40,7 +35,6 @@ except Exception as e:
     db = None
     coleccion = None
 
-# ─── Groq keys ──────────────────────────────
 GROQ_KEYS = [
     os.getenv("GROQ_API_KEY_1"),
     os.getenv("GROQ_API_KEY_2"),
@@ -55,7 +49,6 @@ if GROQ_KEYS:
 else:
     print("No se encontraron API keys de Groq.")
 
-# ─── Telegram ───────────────────────────────
 TELEGRAM_TOKEN   = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -64,12 +57,7 @@ if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
 else:
     print("Telegram no configurado (revisa TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID).")
 
-# ─── Analizador de sentimiento ──────────────
 analizador_sentimiento = SentimentIntensityAnalyzer()
-
-# ─────────────────────────────────────────────
-# RAG — FALLBACK CON PDF
-# ─────────────────────────────────────────────
 
 PDF_PATH = "gokulab_info.pdf"
 
@@ -89,10 +77,6 @@ def cargar_pdf():
         return ""
 
 CONTEXTO_PDF = cargar_pdf()
-
-# ─────────────────────────────────────────────
-# MODELO: CARGAR O ENTRENAR
-# ─────────────────────────────────────────────
 
 MODEL_PATH = "modelo_intents.pkl"
 stop_words = set(stopwords.words("spanish"))
@@ -175,15 +159,47 @@ except Exception as e:
     mejor_modelo, vectorizer = None, None
 
 
-def predecir_intent(texto, umbral=0.5):
+
+def predecir_intent(texto, umbral=0.5, umbral_secundario=0.35):
+    """
+    Devuelve una lista de intenciones detectadas y sus confianzas.
+    - La intención principal debe superar el umbral (0.5)
+    - Las intenciones secundarias deben superar umbral_secundario (0.35)
+    - Saludo y Despedida nunca se combinan con otras intenciones
+    - Máximo 3 intenciones por mensaje
+    """
     if mejor_modelo is None or vectorizer is None:
-        return "Desconocido", 0.0
-    vector = vectorizer.transform([limpiar_texto(texto)])
-    probs = mejor_modelo.predict_proba(vector)[0]
-    max_prob = max(probs)
+        return ["Desconocido"], [0.0]
+
+    vector    = vectorizer.transform([limpiar_texto(texto)])
+    probs     = mejor_modelo.predict_proba(vector)[0]
+    clases    = mejor_modelo.classes_
+    max_prob  = max(probs)
+
     if max_prob < umbral:
-        return "Desconocido", max_prob
-    return mejor_modelo.classes_[probs.argmax()], max_prob
+        return ["Desconocido"], [max_prob]
+
+    pares = sorted(zip(clases, probs), key=lambda x: -x[1])
+    intencion_principal = pares[0][0]
+  
+    if intencion_principal in ["Saludo", "Despedida"]:
+        return [intencion_principal], [pares[0][1]]
+
+    intenciones = []
+    confianzas  = []
+    for clase, prob in pares:
+        if clase in ["Saludo", "Despedida"]:
+            continue
+        if prob >= umbral_secundario:
+            intenciones.append(clase)
+            confianzas.append(prob)
+        if len(intenciones) == 3:
+            break
+
+    if not intenciones:
+        return ["Desconocido"], [max_prob]
+
+    return intenciones, confianzas
 
 
 def obtener_datos_por_intencion(intencion):
@@ -307,12 +323,9 @@ INTENCIONES_REQUIEREN_HUMANO = {
     "Consultar_ClaseDemo",
 }
 
-# ─────────────────────────────────────────────
-# ANÁLISIS DE SENTIMIENTO
-# ─────────────────────────────────────────────
 
 def analizar_sentimiento(texto):
-    scores = analizador_sentimiento.polarity_scores(texto)
+    scores   = analizador_sentimiento.polarity_scores(texto)
     compound = scores["compound"]
     if compound <= -0.35:
         return "negativo", compound
@@ -321,10 +334,6 @@ def analizar_sentimiento(texto):
     else:
         return "neutral", compound
 
-
-# ─────────────────────────────────────────────
-# VALIDACIÓN DE ENTRADA
-# ─────────────────────────────────────────────
 
 def validar_entrada(mensaje):
     if not mensaje or not mensaje.strip():
@@ -343,11 +352,6 @@ RESPUESTAS_INVALIDAS = {
     "too_short":    "¿Puedes contarme un poco más? Con gusto te ayudo",
 }
 
-
-# ─────────────────────────────────────────────
-# CONSTRUCCIÓN DE PROMPTS
-# ─────────────────────────────────────────────
-
 TONO_MAP = {
     "negativo": "El usuario está frustrado. Responde con empatía y paciencia.",
     "positivo": "El usuario está animado. Mantén esa energía.",
@@ -365,7 +369,7 @@ INSTRUCCIONES = {
     ),
     "Desconocido":             "No entendiste la consulta. Discúlpate y pide que la reformule.",
     "Consultar_Cursos":        "Menciona los cursos disponibles con nombre y descripción breve (máximo dos líneas). Sé conversacional.",
-    "Consultar_Costos": "Da el rango de costos en UNA sola oración muy breve. NO inventes precios exactos. NO menciones WhatsApp ni correos.",
+    "Consultar_Costos":        "Da el rango de costos en UNA sola oración muy breve. NO inventes precios exactos. NO menciones WhatsApp ni correos.",
     "Consultar_Horarios":      "Presenta los horarios por curso de forma clara.",
     "Consultar_Ubicacion":     "Da la dirección, referencias y link de Maps.",
     "Consultar_Modalidad":     "Explica si las clases son presenciales, online o híbridas por curso.",
@@ -385,8 +389,9 @@ INSTRUCCIONES = {
     ),
 }
 
+
 def construir_prompt(intencion, datos, config, sentimiento):
-    academia = config.get("nombre_academia", "Gōku Lab")
+    academia   = config.get("nombre_academia", "Gōku Lab")
     instruccion = INSTRUCCIONES.get(intencion, f"Responde sobre: {intencion}").replace("{academia}", academia)
 
     return (
@@ -413,9 +418,26 @@ def construir_prompt_rag(contexto_pdf, config, sentimiento):
     )
 
 
-# ─────────────────────────────────────────────
-# RESPUESTA DE EMERGENCIA
-# ─────────────────────────────────────────────
+def construir_prompt_multiple(intenciones, todos_datos, config, sentimiento):
+    academia = config.get("nombre_academia", "Gōku Lab")
+
+    instrucciones_combinadas = []
+    for intencion in intenciones:
+        instruccion = INSTRUCCIONES.get(intencion, f"Responde sobre: {intencion}")
+        instruccion = instruccion.replace("{academia}", academia)
+        instrucciones_combinadas.append(f"- {instruccion}")
+
+    return (
+        f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
+        f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
+        f"El usuario hizo VARIAS preguntas. Responde TODAS en un solo mensaje fluido:\n"
+        f"{chr(10).join(instrucciones_combinadas)}\n"
+        f"Datos disponibles: {todos_datos}\n"
+        f"Reglas: No inventes info. MÁXIMO 4 oraciones. Sin viñetas. "
+        f"Responde cada pregunta de forma natural en el mismo párrafo. "
+        f"Termina con una pregunta SOLO si NO es despedida."
+    )
+
 
 RESPUESTA_FALLBACK = (
     "En este momento tengo un problema técnico. "
@@ -425,7 +447,7 @@ RESPUESTA_FALLBACK = (
 def llamar_groq(messages):
     for key in GROQ_KEYS:
         try:
-            cliente = Groq(api_key=key)
+            cliente   = Groq(api_key=key)
             respuesta = cliente.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 max_tokens=120,
@@ -437,11 +459,6 @@ def llamar_groq(messages):
             print(f"Key falló: {e}. Intentando siguiente...")
             continue
     return RESPUESTA_FALLBACK
-
-
-# ─────────────────────────────────────────────
-# FLASK APP
-# ─────────────────────────────────────────────
 
 app = Flask(__name__)
 CORS(app)
@@ -489,12 +506,10 @@ def chat():
                 mensaje_original    = estado.get("mensaje_original", "")
 
         if esperando_numero:
-            # Verificar si el mensaje parece un número de teléfono
             solo_numeros = re.sub(r"[\s\-\(\)\+]", "", mensaje)
-            es_numero = solo_numeros.isdigit() and len(solo_numeros) >= 8
+            es_numero    = solo_numeros.isdigit() and len(solo_numeros) >= 8
 
             if not es_numero:
-                # No parece número, volver a pedir
                 return jsonify({
                     "intencion":   "esperando_numero",
                     "confianza":   "100%",
@@ -502,9 +517,9 @@ def chat():
                     "respuesta":   "Para conectarte con nuestro equipo necesito tu número de WhatsApp. ¿Me lo compartes? 😊",
                 })
 
-            numero_dado = mensaje
-
+            numero_dado           = mensaje
             contexto_conversacion = ""
+
             if coleccion is not None:
                 historial_lead = list(
                     coleccion.find({"numero": numero}, {"_id": 0, "mensaje": 1, "respuesta": 1})
@@ -518,12 +533,9 @@ def chat():
                         lineas.append(f"Bot: {h['respuesta']}")
                     contexto_conversacion = "\n".join(lineas)
 
-            #
             notificar_marco_con_contexto(numero_dado, intencion_pendiente, mensaje_original, contexto_conversacion)
-
             db["estados"].delete_one({"numero": numero})
 
-    
             if coleccion is not None:
                 try:
                     coleccion.insert_one({
@@ -550,15 +562,14 @@ def chat():
                 ),
             })
 
-        # 3. Sentimiento ────────────────────────────────────
         sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
+        intenciones, confianzas = predecir_intent(mensaje)
+        intencion = intenciones[0]  
+        confianza = confianzas[0]
+        requiere_humano = any(i in INTENCIONES_REQUIEREN_HUMANO for i in intenciones)
 
-        # 4. Intención ──────────────────────────────────────
-        intencion, confianza = predecir_intent(mensaje)
-
-        # 5. ¿Esta intención requiere atención humana? ──────
-        if intencion in INTENCIONES_REQUIEREN_HUMANO:
-
+        if requiere_humano:
+            intencion_lead = next(i for i in intenciones if i in INTENCIONES_REQUIEREN_HUMANO)
 
             ya_dio_numero = False
             if coleccion is not None:
@@ -569,15 +580,19 @@ def chat():
                 if captura_previa:
                     ya_dio_numero = True
 
+            todos_datos = {}
+            for i in intenciones:
+                datos_i = obtener_datos_por_intencion(i)
+                todos_datos.update(datos_i)
+            config = todos_datos.get("config") or {}
+
             if ya_dio_numero:
-                datos  = obtener_datos_por_intencion(intencion)
-                config = datos.get("config") or {}
                 respuesta_directa = llamar_groq([
-                    {"role": "system", "content": construir_prompt(intencion, datos, config, sentimiento)},
+                    {"role": "system", "content": construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)},
                     {"role": "user",   "content": mensaje},
                 ])
                 return jsonify({
-                    "intencion":   intencion,
+                    "intencion":   "+".join(intenciones),
                     "confianza":   f"{confianza:.0%}",
                     "sentimiento": sentimiento,
                     "respuesta":   respuesta_directa,
@@ -589,22 +604,19 @@ def chat():
                     {
                         "numero":              numero,
                         "esperando_numero":    True,
-                        "intencion_pendiente": intencion,
+                        "intencion_pendiente": intencion_lead,
                         "mensaje_original":    mensaje,
                     },
                     upsert=True,
                 )
 
-            datos  = obtener_datos_por_intencion(intencion)
-            config = datos.get("config") or {}
-
             respuesta_parcial = llamar_groq([
-                {"role": "system", "content": construir_prompt(intencion, datos, config, sentimiento)},
+                {"role": "system", "content": construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)},
                 {"role": "user",   "content": mensaje},
             ])
 
             return jsonify({
-                "intencion":   intencion,
+                "intencion":   "+".join(intenciones),
                 "confianza":   f"{confianza:.0%}",
                 "sentimiento": sentimiento,
                 "respuesta": (
@@ -613,12 +625,15 @@ def chat():
                 ),
             })
 
-        # 6. Datos según intención (flujo normal) ───────────
-        usar_rag = intencion == "Desconocido"
-        datos    = obtener_datos_por_intencion(intencion)
-        config   = datos.get("config") or {}
 
-        # 7. Historial reciente (últimos 3 intercambios) ────
+        usar_rag = intenciones == ["Desconocido"]
+
+        todos_datos = {}
+        for i in intenciones:
+            datos_i = obtener_datos_por_intencion(i)
+            todos_datos.update(datos_i)
+        config = todos_datos.get("config") or {}
+
         historial_groq = []
         if coleccion is not None:
             historial_db = list(
@@ -630,26 +645,23 @@ def chat():
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
-        # 8. Prompt ─────────────────────────────────────────
         if usar_rag and CONTEXTO_PDF:
             prompt_sistema = construir_prompt_rag(CONTEXTO_PDF, config, sentimiento)
         else:
-            prompt_sistema = construir_prompt(intencion, datos, config, sentimiento)
+            prompt_sistema = construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)
 
-        # 9. Llamada a Groq ──────────────────────────────────
         respuesta = llamar_groq([
             {"role": "system", "content": prompt_sistema},
             *historial_groq,
             {"role": "user",   "content": mensaje},
         ])
 
-        # 10. Guardar en MongoDB ─────────────────────────────
         if coleccion is not None:
             try:
                 coleccion.insert_one({
                     "numero":      numero,
                     "mensaje":     mensaje,
-                    "intencion":   intencion,
+                    "intencion":   "+".join(intenciones),
                     "confianza":   round(confianza, 4),
                     "sentimiento": sentimiento,
                     "score_sent":  round(score_sentimiento, 4),
@@ -660,9 +672,8 @@ def chat():
             except Exception as mongo_err:
                 print(f"No se pudo guardar en MongoDB: {mongo_err}")
 
-        # 11. Respuesta ──────────────────────────────────────
         return jsonify({
-            "intencion":   intencion,
+            "intencion":   "+".join(intenciones),
             "confianza":   f"{confianza:.0%}",
             "sentimiento": sentimiento,
             "respuesta":   respuesta,
