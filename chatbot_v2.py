@@ -369,10 +369,10 @@ INSTRUCCIONES = {
     ),
     "Desconocido":             "No entendiste la consulta. Discúlpate y pide que la reformule.",
     "Consultar_Cursos":        "Menciona los cursos disponibles con nombre y descripción muy breve (máximo dos líneas). Sé conversacional.",
-    "Consultar_Costos":        "Da el rango de costos en UNA sola oración muy breve. NO inventes precios exactos. NO menciones WhatsApp ni correos.",
+    "Consultar_Costos":        "Da el rango de costos en UNA sola oración muy breve. NO inventes precios exactos. NO menciones WhatsApp ni correos. Si hay otras preguntas en el mensaje, respóndelas también",
     "Consultar_Horarios": (
     "Si el usuario mencionó un curso específico, presenta SOLO los horarios de ese curso. "
-    "Si no mencionó ninguno, pregúntale qué curso le interesa antes de dar horarios."),
+    "Si no mencionó ninguno, pregúntale qué curso le intSeresa antes de dar horarios."),
     "Consultar_Ubicacion": (
     "Da la dirección en UNA sola oración muy breve y el link de Maps. "
     "NO menciones referencias largas ni descripciones del lugar."),
@@ -439,6 +439,7 @@ def construir_prompt_multiple(intenciones, todos_datos, config, sentimiento):
         f"Datos disponibles: {todos_datos}\n"
         f"Reglas: No inventes info. MÁXIMO 2 oraciones. Sin viñetas. "
         f"Responde cada pregunta de forma natural en el mismo párrafo. "
+        f"Haz UNA SOLA pregunta al final, nunca dos. "
         f"Termina con una pregunta SOLO si NO es despedida."
     )
 
