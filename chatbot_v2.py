@@ -368,10 +368,14 @@ INSTRUCCIONES = {
         "'¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'"
     ),
     "Desconocido":             "No entendiste la consulta. Discúlpate y pide que la reformule.",
-    "Consultar_Cursos":        "Menciona los cursos disponibles con nombre y descripción breve (máximo dos líneas). Sé conversacional.",
+    "Consultar_Cursos":        "Menciona los cursos disponibles con nombre y descripción muy breve (máximo dos líneas). Sé conversacional.",
     "Consultar_Costos":        "Da el rango de costos en UNA sola oración muy breve. NO inventes precios exactos. NO menciones WhatsApp ni correos.",
-    "Consultar_Horarios":      "Presenta los horarios por curso de forma clara.",
-    "Consultar_Ubicacion":     "Da la dirección, referencias y link de Maps.",
+    "Consultar_Horarios": (
+    "Si el usuario mencionó un curso específico, presenta SOLO los horarios de ese curso. "
+    "Si no mencionó ninguno, pregúntale qué curso le interesa antes de dar horarios."),
+    "Consultar_Ubicacion": (
+    "Da la dirección en UNA sola oración muy breve y el link de Maps. "
+    "NO menciones referencias largas ni descripciones del lugar."),
     "Consultar_Modalidad":     "Explica si las clases son presenciales, online o híbridas por curso.",
     "Consultar_Certificacion": "Explica si se otorga certificado y su validez.",
     "Consultar_ClaseDemo": (
@@ -433,7 +437,7 @@ def construir_prompt_multiple(intenciones, todos_datos, config, sentimiento):
         f"El usuario hizo VARIAS preguntas. Responde TODAS en un solo mensaje fluido:\n"
         f"{chr(10).join(instrucciones_combinadas)}\n"
         f"Datos disponibles: {todos_datos}\n"
-        f"Reglas: No inventes info. MÁXIMO 4 oraciones. Sin viñetas. "
+        f"Reglas: No inventes info. MÁXIMO 2 oraciones. Sin viñetas. "
         f"Responde cada pregunta de forma natural en el mismo párrafo. "
         f"Termina con una pregunta SOLO si NO es despedida."
     )
