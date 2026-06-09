@@ -98,7 +98,7 @@ def cargar_datos():
         return pd.DataFrame()
 
     df = pd.DataFrame(docs)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True).dt.tz_convert("America/Mexico_City")
     df["hora"]      = df["timestamp"].dt.hour
     df["fecha"]     = df["timestamp"].dt.date
     df["confianza"] = pd.to_numeric(df["confianza"], errors="coerce")
