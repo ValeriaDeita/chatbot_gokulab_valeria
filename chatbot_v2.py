@@ -92,8 +92,8 @@ def limpiar_texto(texto):
 
 
 def entrenar_y_guardar():
-    file_id = "1viVnkIq_QIp8jI_Ysye6Q_WVerPsvUvE"
-    file_name = "intencione.xlsx"
+    file_id = "1mzmYKXunfzqSBT-Z6lZ1MSAYogljt0fm"  
+    file_name = "nuevo_dataset.xlsx"              
     url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
 
     if not os.path.exists(file_name):
@@ -693,8 +693,8 @@ def chat():
 def retrain():
     global mejor_modelo, vectorizer
     try:
-        if os.path.exists("intencione.xlsx"):
-            os.remove("intencione.xlsx")
+        if os.path.exists("nuevo_dataset.xlsx"):
+            os.remove("nuevo_dataset.xlsx")
         if os.path.exists(MODEL_PATH):
             os.remove(MODEL_PATH)
         mejor_modelo, vectorizer = entrenar_y_guardar()
