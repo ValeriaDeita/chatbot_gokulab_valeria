@@ -7,8 +7,10 @@ import gdown
 import pandas as pd
 import nltk
 import requests
+import numpy as np
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.svm import SVC
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from flask import Flask, request, jsonify, send_file
@@ -61,24 +63,6 @@ analizador_sentimiento = SentimentIntensityAnalyzer()
 
 PDF_PATH = "gokulab_info.pdf"
 
-def cargar_pdf():
-    if not os.path.exists(PDF_PATH):
-        print(f"PDF no encontrado en: {PDF_PATH}")
-        return ""
-    try:
-        texto = ""
-        with pdfplumber.open(PDF_PATH) as pdf:
-            for page in pdf.pages:
-                texto += page.extract_text() + "\n"
-        print(f"PDF cargado: {len(texto)} caracteres.")
-        return texto
-    except Exception as e:
-        print(f"Error leyendo PDF: {e}")
-        return ""
-
-CONTEXTO_PDF = cargar_pdf()
-
-MODEL_PATH = "modelo_intents.pkl"
 stop_words = set(stopwords.words("spanish"))
 
 
@@ -91,9 +75,72 @@ def limpiar_texto(texto):
     return " ".join([p for p in texto.split() if p not in stop_words])
 
 
+def cargar_pdf():
+    if not os.path.exists(PDF_PATH):
+        print(f"PDF no encontrado en: {PDF_PATH}")
+        return ""
+    try:
+        texto = ""
+        with pdfplumber.open(PDF_PATH) as pdf:
+            for page in pdf.pages:
+                contenido = page.extract_text()
+                if contenido:
+                    texto += contenido + "\n"
+        print(f"PDF cargado: {len(texto)} caracteres.")
+        return texto
+    except Exception as e:
+        print(f"Error leyendo PDF: {e}")
+        return ""
+
+
+def construir_chunks(texto, min_chars=40):
+    # Prueba con salto simple en vez de doble
+    parrafos = texto.split("\n")
+    chunks = [p.strip() for p in parrafos if len(p.strip()) >= min_chars]
+    print(f"RAG: {len(chunks)} chunks generados.")
+    return chunks
+
+def construir_indice_rag(chunks):
+    """
+    Entrena un TfidfVectorizer sobre los chunks del PDF.
+    Devuelve (vectorizer, matriz) listos para búsqueda.
+    """
+    if not chunks:
+        return None, None
+    vec = TfidfVectorizer(analyzer="word")
+    matriz = vec.fit_transform([limpiar_texto(c) for c in chunks])
+    return vec, matriz
+
+
+def buscar_chunks_relevantes(query, chunks, vec_rag, matriz_rag, k=3):
+    """
+    Dado un query, devuelve los k chunks más similares por cosine similarity.
+    """
+    if vec_rag is None or matriz_rag is None or not chunks:
+        return ""
+    vec_query = vec_rag.transform([limpiar_texto(query)])
+    similitudes = cosine_similarity(vec_query, matriz_rag)[0]
+    indices = similitudes.argsort()[-k:][::-1]
+    # Solo devuelve chunks con similitud mínima para evitar ruido
+    resultados = [chunks[i] for i in indices if similitudes[i] > 0.05]
+    return "\n\n".join(resultados) if resultados else ""
+
+
+CONTEXTO_PDF  = cargar_pdf()
+CHUNKS_PDF    = construir_chunks(CONTEXTO_PDF)
+VEC_RAG, MATRIZ_RAG = construir_indice_rag(CHUNKS_PDF)
+
+if VEC_RAG is not None:
+    print("Índice RAG TF-IDF listo.")
+else:
+    print("RAG no disponible (PDF vacío o no encontrado).")
+
+
+MODEL_PATH = "modelo_intents.pkl"
+
 def entrenar_y_guardar():
-    file_id = "1mzmYKXunfzqSBT-Z6lZ1MSAYogljt0fm"  
-    file_name = "nuevo_dataset.xlsx"              
+    file_id  = "1mzmYKXunfzqSBT-Z6lZ1MSAYogljt0fm"
+    file_name = "nuevo_dataset.xlsx"
     url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
 
     if not os.path.exists(file_name):
@@ -122,8 +169,8 @@ def entrenar_y_guardar():
     df_final["Texto"] = df_final["Texto"].apply(limpiar_texto)
 
     vec = TfidfVectorizer()
-    X = vec.fit_transform(df_final["Texto"])
-    Y = df_final["Intent"]
+    X   = vec.fit_transform(df_final["Texto"])
+    Y   = df_final["Intent"]
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=123)
     gs = GridSearchCV(
@@ -159,29 +206,21 @@ except Exception as e:
     mejor_modelo, vectorizer = None, None
 
 
-
 def predecir_intent(texto, umbral=0.5, umbral_secundario=0.35):
-    """
-    Devuelve una lista de intenciones detectadas y sus confianzas.
-    - La intención principal debe superar el umbral (0.5)
-    - Las intenciones secundarias deben superar umbral_secundario (0.35)
-    - Saludo y Despedida nunca se combinan con otras intenciones
-    - Máximo 3 intenciones por mensaje
-    """
     if mejor_modelo is None or vectorizer is None:
         return ["Desconocido"], [0.0]
 
-    vector    = vectorizer.transform([limpiar_texto(texto)])
-    probs     = mejor_modelo.predict_proba(vector)[0]
-    clases    = mejor_modelo.classes_
-    max_prob  = max(probs)
+    vector   = vectorizer.transform([limpiar_texto(texto)])
+    probs    = mejor_modelo.predict_proba(vector)[0]
+    clases   = mejor_modelo.classes_
+    max_prob = max(probs)
 
     if max_prob < umbral:
         return ["Desconocido"], [max_prob]
 
-    pares = sorted(zip(clases, probs), key=lambda x: -x[1])
+    pares               = sorted(zip(clases, probs), key=lambda x: -x[1])
     intencion_principal = pares[0][0]
-  
+
     if intencion_principal in ["Saludo", "Despedida"]:
         return [intencion_principal], [pares[0][1]]
 
@@ -207,7 +246,6 @@ def obtener_datos_por_intencion(intencion):
         return {}
 
     config = db["datos_generales"].find_one({}, {"_id": 0}) or {}
-
     config_mini = {
         "nombre_academia": config.get("nombre_academia"),
         "whatsapp":        config.get("whatsapp"),
@@ -276,38 +314,34 @@ def obtener_datos_por_intencion(intencion):
 
 
 ETIQUETAS_INTENCION = {
-    "Consultar_Costos":     "Consulta de precios",
-    "Consultar_ClaseDemo":  "Clase demo / Master Class",
+    "Consultar_Costos":    "Consulta de precios",
+    "Consultar_ClaseDemo": "Clase demo / Master Class",
 }
+
 
 def notificar_marco(numero_usuario, intencion, mensaje_original):
     notificar_marco_con_contexto(numero_usuario, intencion, mensaje_original, "")
+
 
 def notificar_marco_con_contexto(numero_usuario, intencion, mensaje_original, contexto):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
         print("Telegram no configurado, notificación omitida.")
         return
 
-    tema = ETIQUETAS_INTENCION.get(intencion, intencion)
-
+    tema  = ETIQUETAS_INTENCION.get(intencion, intencion)
     texto = (
         f"🔔 *Nuevo lead — Gōku Lab*\n\n"
         f"Tema: {tema}\n"
         f"contacto: `{numero_usuario}`\n"
         f"¿Qué consultó?: _{mensaje_original}_"
     )
-
     if contexto:
         texto += f"\n\n📋 *Conversación previa:*\n{contexto}"
 
     try:
         resp = requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={
-                "chat_id":    TELEGRAM_CHAT_ID,
-                "text":       texto,
-                "parse_mode": "Markdown",
-            },
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": texto, "parse_mode": "Markdown"},
             timeout=5,
         )
         if resp.ok:
@@ -335,6 +369,7 @@ def analizar_sentimiento(texto):
         return "neutral", compound
 
 
+
 def validar_entrada(mensaje):
     if not mensaje or not mensaje.strip():
         return False, "empty"
@@ -351,6 +386,7 @@ RESPUESTAS_INVALIDAS = {
     "only_symbols": "¡Hola! No entendí bien tu mensaje. ¿Puedes escribirme tu pregunta?",
     "too_short":    "¿Puedes contarme un poco más? Con gusto te ayudo",
 }
+
 
 TONO_MAP = {
     "negativo": "El usuario está frustrado. Responde con empatía y paciencia.",
@@ -371,11 +407,13 @@ INSTRUCCIONES = {
     "Consultar_Cursos":        "Menciona los cursos disponibles con nombre y descripción muy breve (máximo dos líneas). Sé conversacional.",
     "Consultar_Costos":        "Da el rango de costos en UNA sola oración muy breve. NO inventes precios exactos. NO menciones WhatsApp ni correos. Si hay otras preguntas en el mensaje, respóndelas también",
     "Consultar_Horarios": (
-    "Si el usuario mencionó un curso específico, presenta SOLO los horarios de ese curso. "
-    "Si no mencionó ninguno, pregúntale qué curso le intSeresa antes de dar horarios."),
+        "Si el usuario mencionó un curso específico, presenta SOLO los horarios de ese curso. "
+        "Si no mencionó ninguno, pregúntale qué curso le interesa antes de dar horarios."
+    ),
     "Consultar_Ubicacion": (
-    "Da la dirección en UNA sola oración muy breve y el link de Maps. "
-    "NO menciones referencias largas ni descripciones del lugar."),
+        "Da la dirección en UNA sola oración muy breve y el link de Maps. "
+        "NO menciones referencias largas ni descripciones del lugar."
+    ),
     "Consultar_Modalidad":     "Explica si las clases son presenciales, online o híbridas por curso.",
     "Consultar_Certificacion": "Explica si se otorga certificado y su validez.",
     "Consultar_ClaseDemo": (
@@ -395,9 +433,8 @@ INSTRUCCIONES = {
 
 
 def construir_prompt(intencion, datos, config, sentimiento):
-    academia   = config.get("nombre_academia", "Gōku Lab")
+    academia    = config.get("nombre_academia", "Gōku Lab")
     instruccion = INSTRUCCIONES.get(intencion, f"Responde sobre: {intencion}").replace("{academia}", academia)
-
     return (
         f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
         f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
@@ -410,13 +447,18 @@ def construir_prompt(intencion, datos, config, sentimiento):
     )
 
 
-def construir_prompt_rag(contexto_pdf, config, sentimiento):
+def construir_prompt_rag(contexto_relevante, config, sentimiento):
+    """
+    Prompt RAG: recibe solo los chunks relevantes, no el PDF completo.
+    """
     academia = config.get("nombre_academia", "Gōku Lab")
-
     return (
         f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
         f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
-        f"Usa solo esta info para responder:\n{contexto_pdf}\n"
+        f"Usa SOLO la siguiente información para responder. "
+        f"Si la respuesta no está en el texto, di que no tienes esa información y ofrece contactar al equipo.\n"
+        f"---\n{contexto_relevante}\n---\n"
+        f"Reglas: MÁXIMO 2 oraciones. No inventes datos. "
         f"Si el usuario se despide NO hagas preguntas. "
         f"Termina con una pregunta SOLO si NO es despedida."
     )
@@ -424,13 +466,11 @@ def construir_prompt_rag(contexto_pdf, config, sentimiento):
 
 def construir_prompt_multiple(intenciones, todos_datos, config, sentimiento):
     academia = config.get("nombre_academia", "Gōku Lab")
-
     instrucciones_combinadas = []
     for intencion in intenciones:
         instruccion = INSTRUCCIONES.get(intencion, f"Responde sobre: {intencion}")
         instruccion = instruccion.replace("{academia}", academia)
         instrucciones_combinadas.append(f"- {instruccion}")
-
     return (
         f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
         f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
@@ -448,6 +488,7 @@ RESPUESTA_FALLBACK = (
     "En este momento tengo un problema técnico. "
     "Por favor, intenta de nuevo en un momento o escríbenos directamente por WhatsApp. 🙏"
 )
+
 
 def llamar_groq(messages):
     for key in GROQ_KEYS:
@@ -489,7 +530,7 @@ def chat():
         mensaje = data.get("mensaje", "").strip()
         numero  = data.get("numero", "anonimo")
 
-        # 1. Validación ─────────────────────────────────────
+        # 1. Validación
         es_valido, motivo = validar_entrada(mensaje)
         if not es_valido:
             return jsonify({
@@ -498,7 +539,6 @@ def chat():
                 "sentimiento": None,
             }), 200
 
-        # 2. ¿Estábamos esperando el número del usuario? ────
         esperando_numero    = False
         intencion_pendiente = None
         mensaje_original    = None
@@ -568,8 +608,8 @@ def chat():
             })
 
         sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
-        intenciones, confianzas = predecir_intent(mensaje)
-        intencion = intenciones[0]  
+        intenciones, confianzas        = predecir_intent(mensaje)
+        intencion = intenciones[0]
         confianza = confianzas[0]
         requiere_humano = any(i in INTENCIONES_REQUIEREN_HUMANO for i in intenciones)
 
@@ -630,7 +670,6 @@ def chat():
                 ),
             })
 
-
         usar_rag = intenciones == ["Desconocido"]
 
         todos_datos = {}
@@ -638,6 +677,7 @@ def chat():
             datos_i = obtener_datos_por_intencion(i)
             todos_datos.update(datos_i)
         config = todos_datos.get("config") or {}
+
 
         historial_groq = []
         if coleccion is not None:
@@ -650,8 +690,19 @@ def chat():
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
-        if usar_rag and CONTEXTO_PDF:
-            prompt_sistema = construir_prompt_rag(CONTEXTO_PDF, config, sentimiento)
+        if usar_rag:
+            contexto_relevante = buscar_chunks_relevantes(
+                mensaje, CHUNKS_PDF, VEC_RAG, MATRIZ_RAG, k=3
+            )
+            if contexto_relevante:
+                prompt_sistema = construir_prompt_rag(contexto_relevante, config, sentimiento)
+            else:
+                # No se encontró nada relevante en el PDF
+                prompt_sistema = (
+                    f"Eres el asistente virtual de Gōku Lab. "
+                    f"No tienes información sobre lo que pregunta el usuario. "
+                    f"Discúlpate brevemente y sugiere contactar al equipo directamente."
+                )
         else:
             prompt_sistema = construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)
 
@@ -703,6 +754,26 @@ def retrain():
         return jsonify({"status": "error", "mensaje": str(e)}), 500
 
 
+@app.route("/retrain-rag", methods=["POST"])
+def retrain_rag():
+    """
+    Reconstruye el índice RAG desde el PDF sin reiniciar el servidor.
+    Útil cuando actualizas el PDF con más info de cursos.
+    """
+    global CONTEXTO_PDF, CHUNKS_PDF, VEC_RAG, MATRIZ_RAG
+    try:
+        CONTEXTO_PDF         = cargar_pdf()
+        CHUNKS_PDF           = construir_chunks(CONTEXTO_PDF)
+        VEC_RAG, MATRIZ_RAG  = construir_indice_rag(CHUNKS_PDF)
+        return jsonify({
+            "status":       "ok",
+            "chunks":       len(CHUNKS_PDF),
+            "mensaje":      "Índice RAG reconstruido exitosamente",
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "mensaje": str(e)}), 500
+
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
@@ -710,7 +781,8 @@ def health():
         "modelo_cargado":  mejor_modelo is not None,
         "mongo_ok":        db is not None,
         "groq_ok":         len(GROQ_KEYS) > 0,
-        "rag_listo":       bool(CONTEXTO_PDF),
+        "rag_listo":       VEC_RAG is not None,
+        "rag_chunks":      len(CHUNKS_PDF),
         "telegram_ok":     bool(TELEGRAM_TOKEN and TELEGRAM_CHAT_ID),
         "timestamp":       datetime.now().isoformat(),
     }), 200
@@ -720,3 +792,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
+
