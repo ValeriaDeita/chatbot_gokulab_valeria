@@ -486,7 +486,6 @@ def chat():
         mensaje = data.get("mensaje", "").strip()
         numero  = data.get("numero", "anonimo")
 
-        # 1. Validación
         es_valido, motivo = validar_entrada(mensaje)
         if not es_valido:
             return jsonify({
@@ -495,20 +494,17 @@ def chat():
                 "sentimiento": None,
             }), 200
 
-        # 2. Sentimiento e intent
         sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
         intenciones, confianzas        = predecir_intent(mensaje)
         intencion = intenciones[0]
         confianza = confianzas[0]
 
-        # 3. Datos de MongoDB
         todos_datos = {}
         for i in intenciones:
             datos_i = obtener_datos_por_intencion(i)
             todos_datos.update(datos_i)
         config = todos_datos.get("config") or {}
 
-        # 4. Historial de conversación
         historial_groq = []
         if coleccion is not None:
             historial_db = list(
@@ -520,7 +516,6 @@ def chat():
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
-        # 5. Construir prompt
         usar_rag = intenciones == ["Desconocido"]
 
         if usar_rag:
@@ -540,14 +535,12 @@ def chat():
         else:
             prompt_sistema = construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)
 
-        # 6. Llamar a Groq
         respuesta = llamar_groq([
             {"role": "system", "content": prompt_sistema},
             *historial_groq,
             {"role": "user",   "content": mensaje},
         ])
 
-        # 7. Guardar en MongoDB
         if coleccion is not None:
             try:
                 coleccion.insert_one({
@@ -623,3 +616,5 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
+
+    
