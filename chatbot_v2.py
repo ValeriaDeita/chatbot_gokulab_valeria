@@ -266,10 +266,11 @@ def obtener_datos_por_intencion(intencion):
         }
 
     elif intencion == "Consultar_Horarios":
+        cursos = list(db["cursos"].find({}, {
+        "_id": 0, "idCurso": 1, "nombreCurso": 1, "requiere_agenda": 1}))
         horarios = list(db["horarios"].find({}, {
-            "_id": 0, "nombreCurso": 1, "horarios": 1
-        }))
-        return {"horarios": horarios, "config": config_mini}
+        "_id": 0, "idCurso": 1, "nombreCurso": 1, "horarios": 1}))
+        return {"cursos": cursos, "horarios": horarios, "config": config_mini}
 
     elif intencion == "Consultar_Certificacion":
         return {"certificacion": config.get("certificacion"), "config": config_mini}
@@ -405,11 +406,15 @@ INSTRUCCIONES = {
     ),
     "Desconocido":             "No entendiste la consulta. Discúlpate y pide que la reformule.",
     "Consultar_Cursos":        "Menciona los cursos disponibles con nombre y descripción muy breve (máximo dos líneas). Sé conversacional.",
-    "Consultar_Costos":        "Da el rango de costos en UNA sola oración muy breve. NO inventes precios exactos. NO menciones WhatsApp ni correos. Si hay otras preguntas en el mensaje, respóndelas también",
+    "Consultar_Costos": (
+    "Da el rango de costos en UNA sola oración muy breve. "
+    "NO inventes precios exactos. "
+    "Al final pregunta amablemente si desea que Marco se comunique con él para darle información personalizada, sin forzarlo."),
     "Consultar_Horarios": (
-        "Si el usuario mencionó un curso específico, presenta SOLO los horarios de ese curso. "
-        "Si no mencionó ninguno, pregúntale qué curso le interesa antes de dar horarios."
-    ),
+    "Si el usuario mencionó un curso específico, busca ese curso en los datos. "
+    "Si ese curso tiene requiere_agenda=true, dile que ese curso se coordina directamente con la academia y pregunta amablemente si quiere que un miembro de la academia se comunique con él. "
+    "Si tiene requiere_agenda=false, presenta SOLO los horarios de ese curso. "
+    "Si el usuario no mencionó ningún curso, pregúntale cuál le interesa antes de dar horarios."),
     "Consultar_Ubicacion": (
         "Da la dirección en UNA sola oración muy breve y el link de Maps. "
         "NO menciones referencias largas ni descripciones del lugar."
@@ -417,10 +422,10 @@ INSTRUCCIONES = {
     "Consultar_Modalidad":     "Explica si las clases son presenciales, online o híbridas por curso.",
     "Consultar_Certificacion": "Explica si se otorga certificado y su validez.",
     "Consultar_ClaseDemo": (
-        "Explica que existe una Master Class gratuita para conocer la metodología. "
-        "NO menciones correos, enlaces, formularios ni WhatsApp. "
-        "NO inventes fechas ni horarios fijos."
-    ),
+    "Explica que existe una Master Class gratuita para conocer la metodología. "
+    "NO menciones correos, enlaces, formularios ni WhatsApp. "
+    "NO inventes fechas ni horarios fijos. "
+    "Al final pregunta amablemente si desea que Marco se comunique con él para coordinar, sin forzarlo."),
     "Consultar_FormasPago":    "Menciona métodos de pago y opción de abonos.",
     "Consultar_RequisitosEdad":"Explica el rango de edad por curso.",
     "Consultar_Duracion": (
