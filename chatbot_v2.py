@@ -510,7 +510,7 @@ def chat():
             historial_db = list(
                 coleccion.find({"numero": numero}, {"_id": 0, "mensaje": 1, "respuesta": 1})
                 .sort("timestamp", -1)
-                .limit(3)
+                .limit(4)
             )
             for h in reversed(historial_db):
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
@@ -617,4 +617,3 @@ if __name__ == "__main__":
     print(f"Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
 
-    
