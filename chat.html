@@ -203,14 +203,6 @@
   .copy-btn svg { width: 11px; height: 11px; }
   .copy-btn.copied { color: var(--verde); opacity: 1; }
 
-  /* Indicador "usuario escribiendo" */
-  .user-typing-bar {
-    font-size: 11px; color: var(--gris-texto);
-    padding: 2px 14px 4px; font-style: italic;
-    min-height: 18px; background: var(--gris-fondo);
-    font-weight: 600;
-  }
-
   /* Typing indicator del bot */
   .typing {
     display: flex; align-items: center; gap: 4px;
@@ -342,9 +334,6 @@
     </button>
   </div>
 
-  <!-- Indicador usuario escribiendo -->
-  <div class="user-typing-bar" id="userTypingBar"></div>
-
   <!-- Sugerencias rápidas -->
   <div class="suggestions" id="suggestions">
     <div class="chip" onclick="sendSuggestion('¿Cuánto cuestan los cursos?')">💰 Costos</div>
@@ -380,7 +369,7 @@
   let API_URL = localStorage.getItem('gokulab_api_url') || 'https://chatbot-gokulab-valeria.onrender.com';
   const USER_ID = 'tester_' + Math.random().toString(36).substr(2, 6);
   let isSending = false;
-  let typingTimer = null;
+
 
   // ── AUDIO ──────────────────────────────────────────────────
   function playPop() {
@@ -430,16 +419,8 @@
     showToast('Conversación reiniciada');
   }
 
-  // ── INDICADOR USUARIO ESCRIBIENDO ──────────────────────────
-  const userTypingBar = document.getElementById('userTypingBar');
-
   function handleInput(el) {
     autoResize(el);
-    userTypingBar.textContent = el.value.trim() ? 'Escribiendo...' : '';
-    clearTimeout(typingTimer);
-    if (el.value.trim()) {
-      typingTimer = setTimeout(() => { userTypingBar.textContent = ''; }, 2000);
-    }
   }
 
   // ── COPIAR RESPUESTA ────────────────────────────────────────
@@ -570,7 +551,7 @@
     document.getElementById('sendBtn').disabled = true;
     input.value = '';
     input.style.height = 'auto';
-    userTypingBar.textContent = '';
+
 
     appendMsg('user', msg);
     showTyping();
