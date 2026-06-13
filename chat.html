@@ -34,23 +34,17 @@
 
   body::before {
     content: '';
-    position: fixed;
-    inset: 0;
+    position: fixed; inset: 0;
     background-image:
       radial-gradient(circle at 15% 15%, rgba(0,174,239,0.07) 0%, transparent 50%),
       radial-gradient(circle at 85% 85%, rgba(245,168,0,0.07) 0%, transparent 50%);
-    pointer-events: none;
-    z-index: 0;
+    pointer-events: none; z-index: 0;
   }
 
   .chat-wrapper {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 440px;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
+    position: relative; z-index: 1;
+    width: 100%; max-width: 440px; height: 100dvh;
+    display: flex; flex-direction: column;
     background: var(--blanco);
     box-shadow: var(--sombra);
     border-left: 1px solid var(--gris-borde);
@@ -62,104 +56,97 @@
   .header {
     padding: 14px 18px;
     background: var(--azul);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0; position: relative; overflow: hidden;
   }
-
   .header::after {
-    content: '';
-    position: absolute;
-    right: -20px; top: -20px;
-    width: 90px; height: 90px;
-    background: rgba(255,255,255,0.08);
-    border-radius: 50%;
+    content: ''; position: absolute; right: -20px; top: -20px;
+    width: 90px; height: 90px; background: rgba(255,255,255,0.08); border-radius: 50%;
   }
-
   .header::before {
-    content: '';
-    position: absolute;
-    right: 30px; bottom: -30px;
-    width: 60px; height: 60px;
-    background: rgba(245,168,0,0.15);
-    border-radius: 50%;
+    content: ''; position: absolute; right: 30px; bottom: -30px;
+    width: 60px; height: 60px; background: rgba(245,168,0,0.15); border-radius: 50%;
   }
 
   .avatar {
-    width: 46px; height: 46px;
-    border-radius: 50%;
-    background: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    overflow: hidden;
+    width: 46px; height: 46px; border-radius: 50%; background: white;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; overflow: hidden;
     border: 2px solid rgba(255,255,255,0.4);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    position: relative;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15); position: relative;
   }
-
   .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .avatar-fallback { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 16px; color: var(--azul); }
 
   .header-info { flex: 1; }
-
-  .header-name {
-    font-family: 'Nunito', sans-serif;
-    font-weight: 800; font-size: 15px; color: white;
-  }
-
-  .header-status {
-    font-size: 12px; color: rgba(255,255,255,0.85);
-    margin-top: 1px; display: flex; align-items: center; gap: 4px;
-  }
+  .header-name { font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 15px; color: white; }
+  .header-status { font-size: 12px; color: rgba(255,255,255,0.85); margin-top: 1px; display: flex; align-items: center; gap: 4px; }
 
   .dot-verde {
-    width: 7px; height: 7px;
-    background: #7FE87F; border-radius: 50%; display: inline-block;
-    animation: pulso 2s infinite;
+    width: 7px; height: 7px; background: #7FE87F; border-radius: 50%;
+    display: inline-block; animation: pulso 2s infinite;
   }
-
   @keyframes pulso {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.6; transform: scale(0.85); }
   }
 
+  /* Botones del header (limpiar) */
+  .header-actions { display: flex; align-items: center; gap: 6px; position: relative; z-index: 1; }
+
   .header-badge {
-    font-family: 'Nunito', sans-serif;
-    font-size: 10px; font-weight: 700;
+    font-family: 'Nunito', sans-serif; font-size: 10px; font-weight: 700;
     color: var(--azul); background: white;
     padding: 3px 8px; border-radius: 20px;
-    position: relative; z-index: 1;
   }
 
+  .clear-btn {
+    background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px; padding: 4px 8px; cursor: pointer;
+    color: white; font-size: 11px; font-family: 'Nunito', sans-serif; font-weight: 700;
+    display: flex; align-items: center; gap: 4px;
+    transition: background 0.15s;
+  }
+  .clear-btn:hover { background: rgba(255,255,255,0.28); }
+  .clear-btn svg { width: 12px; height: 12px; fill: white; }
+
   /* ── MENSAJES ── */
+  .messages-wrap { flex: 1; position: relative; overflow: hidden; }
+
   .messages {
-    flex: 1; overflow-y: auto;
+    height: 100%; overflow-y: auto;
     padding: 12px 12px;
     display: flex; flex-direction: column; gap: 6px;
     scroll-behavior: smooth;
     background: var(--gris-fondo);
   }
-
   .messages::-webkit-scrollbar { width: 4px; }
   .messages::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 2px; }
 
+  /* Scroll to bottom button */
+  .scroll-btn {
+    position: absolute; bottom: 12px; right: 12px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: var(--azul); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(0,174,239,0.4);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 10;
+  }
+  .scroll-btn.visible { opacity: 1; pointer-events: all; }
+  .scroll-btn:hover { transform: scale(1.1); }
+  .scroll-btn svg { width: 16px; height: 16px; fill: white; }
+
   .date-sep {
-    text-align: center; font-size: 11px;
-    color: var(--gris-texto); margin: 4px 0 6px;
-    letter-spacing: 0.06em; font-weight: 600;
+    text-align: center; font-size: 11px; color: var(--gris-texto);
+    margin: 4px 0 6px; letter-spacing: 0.06em; font-weight: 600;
   }
 
   .msg {
-    display: flex; flex-direction: column;
-    max-width: 78%;
+    display: flex; flex-direction: column; max-width: 78%;
     animation: popIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both;
   }
-
   @keyframes popIn {
     from { opacity: 0; transform: scale(0.88) translateY(8px); }
     to   { opacity: 1; transform: scale(1) translateY(0); }
@@ -167,88 +154,78 @@
 
   .msg.bot  { align-self: flex-start; }
   .msg.user { align-self: flex-end; }
-
-  .msg.bot .msg-row {
-    display: flex; align-items: flex-end; gap: 6px;
-  }
+  .msg.bot .msg-row { display: flex; align-items: flex-end; gap: 6px; }
 
   .bot-icon {
-    width: 26px; height: 26px; border-radius: 50%;
-    background: var(--azul);
+    width: 26px; height: 26px; border-radius: 50%; background: var(--azul);
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0; overflow: hidden;
   }
-
   .bot-icon img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .bot-icon-fallback { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 10px; color: white; }
 
-  /* ── BURBUJA — cambios clave aquí ── */
   .bubble {
-    padding: 8px 12px;           /* antes: 10px 14px */
-    border-radius: 16px;         /* antes: 18px */
-    font-size: 13px;             /* antes: 14px */
-    line-height: 1.45;           /* antes: 1.55 */
-    word-break: break-word;
-    font-weight: 500;
-    max-width: 100%;
+    padding: 8px 12px; border-radius: 16px;
+    font-size: 13px; line-height: 1.45;
+    word-break: break-word; font-weight: 500; max-width: 100%;
   }
-
   .msg.bot .bubble {
     background: white; color: #2D3748;
     border-bottom-left-radius: 4px;
     border: 1px solid var(--gris-borde);
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   }
-
   .msg.user .bubble {
     background: var(--azul); color: white;
     border-bottom-right-radius: 4px;
     box-shadow: 0 2px 8px rgba(0,174,239,0.3);
   }
 
-  .msg-time {
-    font-size: 10px; color: var(--gris-texto);
-    margin-top: 2px; padding: 0 4px; font-weight: 600;
+  /* Fila de tiempo + botón copiar */
+  .msg-footer {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 2px; padding: 0 4px;
+  }
+  .msg.bot .msg-footer { padding-left: 32px; }
+  .msg.user .msg-footer { justify-content: flex-end; }
+
+  .msg-time { font-size: 10px; color: var(--gris-texto); font-weight: 600; }
+
+  /* Botón copiar */
+  .copy-btn {
+    background: none; border: none; cursor: pointer; padding: 2px;
+    color: var(--gris-texto); display: flex; align-items: center;
+    opacity: 0; transition: opacity 0.15s, color 0.15s;
+    border-radius: 4px;
+  }
+  .msg:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { color: var(--azul); }
+  .copy-btn svg { width: 11px; height: 11px; }
+  .copy-btn.copied { color: var(--verde); opacity: 1; }
+
+  /* Indicador "usuario escribiendo" */
+  .user-typing-bar {
+    font-size: 11px; color: var(--gris-texto);
+    padding: 2px 14px 4px; font-style: italic;
+    min-height: 18px; background: var(--gris-fondo);
+    font-weight: 600;
   }
 
-  .msg.user .msg-time { text-align: right; }
-
-  /* Tags de intención/sentimiento */
-  .msg-tags {
-    display: flex; gap: 4px; margin-top: 4px;
-    flex-wrap: wrap; padding-left: 32px;
-  }
-
-  .tag {
-    font-size: 9px; font-family: 'Nunito', sans-serif; font-weight: 700;
-    letter-spacing: 0.04em; padding: 2px 6px; border-radius: 10px; text-transform: uppercase;
-  }
-
-  .tag.intent { background: rgba(0,174,239,0.1); color: var(--azul); border: 1px solid rgba(0,174,239,0.2); }
-  .tag.sent-positivo { background: rgba(92,184,92,0.1); color: var(--verde); border: 1px solid rgba(92,184,92,0.25); }
-  .tag.sent-negativo { background: rgba(230,51,41,0.1); color: var(--rojo); border: 1px solid rgba(230,51,41,0.2); }
-  .tag.sent-neutral  { background: rgba(136,153,170,0.1); color: var(--gris-texto); border: 1px solid var(--gris-borde); }
-  .tag.conf { background: rgba(245,168,0,0.1); color: #B87D00; border: 1px solid rgba(245,168,0,0.2); }
-
-  /* Typing indicator */
+  /* Typing indicator del bot */
   .typing {
     display: flex; align-items: center; gap: 4px;
     padding: 10px 12px; background: white;
     border: 1px solid var(--gris-borde);
     border-radius: 16px; border-bottom-left-radius: 4px;
-    width: fit-content;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    width: fit-content; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   }
-
   .typing span {
     width: 6px; height: 6px; border-radius: 50%;
     animation: bounce 1.2s infinite; opacity: 0.5;
   }
-
   .typing span:nth-child(1) { background: var(--azul); }
   .typing span:nth-child(2) { background: var(--amarillo); animation-delay: 0.2s; }
   .typing span:nth-child(3) { background: var(--verde); animation-delay: 0.4s; }
-
   @keyframes bounce {
     0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
     30% { transform: translateY(-6px); opacity: 1; }
@@ -257,25 +234,17 @@
   /* ── SUGERENCIAS ── */
   .suggestions {
     padding: 6px 12px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    background: white;
-    border-top: 1px solid var(--gris-borde);
+    display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+    background: white; border-top: 1px solid var(--gris-borde);
   }
-
-  .suggestions::-webkit-scrollbar { display: none; }
-
   .chip {
-    white-space: nowrap; font-size: 11px;   /* antes: 12px */
+    white-space: nowrap; font-size: 11px;
     font-family: 'Quicksand', sans-serif; font-weight: 700;
     color: var(--azul); background: rgba(0,174,239,0.08);
     border: 1.5px solid rgba(0,174,239,0.25);
-    padding: 5px 10px; border-radius: 20px;  /* antes: 6px 12px */
+    padding: 5px 10px; border-radius: 20px;
     cursor: pointer; transition: all 0.15s; flex-shrink: 0;
   }
-
   .chip:hover {
     background: var(--azul); color: white; border-color: var(--azul);
     transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,174,239,0.3);
@@ -287,7 +256,6 @@
     display: flex; gap: 8px; align-items: flex-end;
     background: white; flex-shrink: 0;
   }
-
   .input-box {
     flex: 1; background: var(--gris-fondo);
     border: 1.5px solid var(--gris-borde); border-radius: 20px;
@@ -296,55 +264,22 @@
     resize: none; outline: none; max-height: 100px; line-height: 1.4;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
-
   .input-box::placeholder { color: var(--gris-texto); }
-
   .input-box:focus {
     border-color: var(--azul); background: white;
     box-shadow: 0 0 0 3px rgba(0,174,239,0.12);
   }
-
   .send-btn {
-    width: 40px; height: 40px; border-radius: 50%;  /* antes: 44px */
+    width: 40px; height: 40px; border-radius: 50%;
     background: var(--azul); border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0; transition: all 0.15s;
     box-shadow: 0 3px 10px rgba(0,174,239,0.35);
   }
-
   .send-btn:hover  { background: var(--azul-oscuro); transform: scale(1.05); }
   .send-btn:active { transform: scale(0.93); }
   .send-btn:disabled { background: var(--gris-borde); cursor: not-allowed; box-shadow: none; }
-  .send-btn svg { width: 16px; height: 16px; fill: white; }  /* antes: 18px */
-
-  /* ── CONFIG URL ── */
-  .url-bar {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: rgba(255,255,255,0.97); backdrop-filter: blur(8px);
-    border-top: 1px solid var(--gris-borde);
-    padding: 8px 14px; display: flex; gap: 8px; align-items: center;
-    z-index: 100; font-size: 12px; box-shadow: 0 -2px 12px rgba(0,0,0,0.06);
-  }
-
-  .url-bar label { color: var(--gris-texto); white-space: nowrap; font-size: 11px; font-weight: 600; }
-
-  .url-input {
-    flex: 1; background: var(--gris-fondo);
-    border: 1.5px solid var(--gris-borde); border-radius: 8px;
-    padding: 6px 10px; color: #2D3748;
-    font-family: 'Quicksand', sans-serif; font-size: 12px; outline: none;
-  }
-
-  .url-input:focus { border-color: var(--azul); }
-
-  .url-save {
-    background: var(--amarillo); border: none; border-radius: 8px;
-    padding: 6px 14px; color: white; font-size: 12px;
-    font-family: 'Nunito', sans-serif; font-weight: 800;
-    cursor: pointer; white-space: nowrap; transition: background 0.15s;
-  }
-
-  .url-save:hover { background: #D99200; }
+  .send-btn svg { width: 16px; height: 16px; fill: white; }
 
   /* Toast */
   .toast {
@@ -357,7 +292,6 @@
     z-index: 200; white-space: nowrap;
     box-shadow: 0 4px 16px rgba(92,184,92,0.4);
   }
-
   .toast.show { transform: translateX(-50%) translateY(0); }
   .toast.error { background: var(--rojo); box-shadow: 0 4px 16px rgba(230,51,41,0.4); }
 </style>
@@ -368,31 +302,48 @@
 
   <!-- Header -->
   <div class="header">
-    <div class="avatar" id="headerAvatar">
+    <div class="avatar">
       <img src="/logo.png" alt="Gōku Lab" onerror="this.style.display='none'; this.parentElement.innerHTML='<span class=\'avatar-fallback\'>GL</span>'"/>
     </div>
     <div class="header-info">
       <div class="header-name">Súper Agente Gōku</div>
       <div class="header-status"><span class="dot-verde"></span> En línea</div>
     </div>
-    <div class="header-badge">Do it!</div>
+    <div class="header-actions">
+      <div class="header-badge">Do it!</div>
+      <button class="clear-btn" onclick="clearChat()" title="Limpiar conversación">
+        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        Limpiar
+      </button>
+    </div>
   </div>
 
   <!-- Mensajes -->
-  <div class="messages" id="messages">
-    <div class="date-sep">HOY</div>
-    <div class="msg bot">
-      <div class="msg-row">
-        <div class="bot-icon">
-          <img src="/logo.png" alt="GL" onerror="this.parentElement.innerHTML='<span class=&quot;bot-icon-fallback&quot;>GL</span>'"/>
+  <div class="messages-wrap">
+    <div class="messages" id="messages">
+      <div class="date-sep">HOY</div>
+      <div class="msg bot">
+        <div class="msg-row">
+          <div class="bot-icon">
+            <img src="/logo.png" alt="GL" onerror="this.parentElement.innerHTML='<span class=&quot;bot-icon-fallback&quot;>GL</span>'"/>
+          </div>
+          <div class="bubble">
+            ¡Hola! 👋 Soy <strong>Gōku</strong>. Puedo ayudarte con información sobre cursos, horarios, costos, ubicación y más. ¿En qué te puedo ayudar?
+          </div>
         </div>
-        <div class="bubble">
-          ¡Hola! 👋 Soy <strong>Gōku</strong>. Puedo ayudarte con información sobre cursos, horarios, costos, ubicación y más. ¿En qué te puedo ayudar?
+        <div class="msg-footer">
+          <span class="msg-time">ahora</span>
         </div>
       </div>
-      <div class="msg-time" style="padding-left:32px">ahora</div>
     </div>
+    <!-- Scroll to bottom -->
+    <button class="scroll-btn" id="scrollBtn" onclick="scrollToBottom()" title="Ir al final">
+      <svg viewBox="0 0 24 24"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>
+    </button>
   </div>
+
+  <!-- Indicador usuario escribiendo -->
+  <div class="user-typing-bar" id="userTypingBar"></div>
 
   <!-- Sugerencias rápidas -->
   <div class="suggestions" id="suggestions">
@@ -413,39 +364,97 @@
       placeholder="Escribe tu pregunta..."
       rows="1"
       onkeydown="handleKey(event)"
-      oninput="autoResize(this)"
+      oninput="handleInput(this)"
     ></textarea>
     <button class="send-btn" id="sendBtn" onclick="sendMessage()">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
-      </svg>
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
     </button>
   </div>
 
 </div>
 
-<!-- Barra de configuración de URL 
-<div class="url-bar">
-  <label>🔗 Backend:</label>
-  <input class="url-input" id="urlInput" type="text" placeholder="https://tu-ngrok-url.ngrok-free.app"/>
-  <button class="url-save" onclick="saveUrl()">Guardar</button>
-</div> -->
-
 <div class="toast" id="toast"></div>
 
+<!-- Sonido suave con Web Audio API (sin archivos externos) -->
 <script>
   let API_URL = localStorage.getItem('gokulab_api_url') || 'https://chatbot-gokulab-valeria.onrender.com';
   const USER_ID = 'tester_' + Math.random().toString(36).substr(2, 6);
   let isSending = false;
+  let typingTimer = null;
 
-  function saveUrl() {
-    const val = document.getElementById('urlInput').value.trim().replace(/\/$/, '');
-    if (!val) return;
-    API_URL = val;
-    localStorage.setItem('gokulab_api_url', val);
-    showToast('URL guardada');
+  // ── AUDIO ──────────────────────────────────────────────────
+  function playPop() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.15);
+    } catch(e) {}
   }
 
+  // ── SCROLL TO BOTTOM ────────────────────────────────────────
+  const msgsEl = document.getElementById('messages');
+  const scrollBtn = document.getElementById('scrollBtn');
+
+  msgsEl.addEventListener('scroll', () => {
+    const distFromBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight;
+    scrollBtn.classList.toggle('visible', distFromBottom > 80);
+  });
+
+  function scrollToBottom() {
+    msgsEl.scrollTo({ top: msgsEl.scrollHeight, behavior: 'smooth' });
+  }
+
+  // ── LIMPIAR CHAT ────────────────────────────────────────────
+  function clearChat() {
+    const msgs = document.getElementById('messages');
+    msgs.innerHTML = `
+      <div class="date-sep">HOY</div>
+      <div class="msg bot">
+        <div class="msg-row">
+          <div class="bot-icon">
+            <img src="/logo.png" alt="GL" onerror="this.parentElement.innerHTML='<span class=&quot;bot-icon-fallback&quot;>GL</span>'"/>
+          </div>
+          <div class="bubble">¡Hola! 👋 Soy <strong>Gōku</strong>. Puedo ayudarte con información sobre cursos, horarios, costos, ubicación y más. ¿En qué te puedo ayudar?</div>
+        </div>
+        <div class="msg-footer"><span class="msg-time">${getTime()}</span></div>
+      </div>`;
+    showToast('Conversación reiniciada');
+  }
+
+  // ── INDICADOR USUARIO ESCRIBIENDO ──────────────────────────
+  const userTypingBar = document.getElementById('userTypingBar');
+
+  function handleInput(el) {
+    autoResize(el);
+    userTypingBar.textContent = el.value.trim() ? 'Escribiendo...' : '';
+    clearTimeout(typingTimer);
+    if (el.value.trim()) {
+      typingTimer = setTimeout(() => { userTypingBar.textContent = ''; }, 2000);
+    }
+  }
+
+  // ── COPIAR RESPUESTA ────────────────────────────────────────
+  function copiarTexto(btn, texto) {
+    navigator.clipboard.writeText(texto).then(() => {
+      btn.classList.add('copied');
+      btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`;
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
+      }, 2000);
+    }).catch(() => showToast('No se pudo copiar', true));
+  }
+
+  // ── UTILIDADES ──────────────────────────────────────────────
   function showToast(msg, isError = false) {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -470,7 +479,8 @@
     }
   }
 
-  function appendMsg(role, text, meta = null) {
+  // ── AGREGAR MENSAJE ─────────────────────────────────────────
+  function appendMsg(role, text) {
     const msgs = document.getElementById('messages');
     const wrap = document.createElement('div');
     wrap.className = `msg ${role}`;
@@ -491,11 +501,23 @@
       row.appendChild(bubble);
       wrap.appendChild(row);
 
-      const time = document.createElement('div');
+      // Footer con hora + botón copiar
+      const footer = document.createElement('div');
+      footer.className = 'msg-footer';
+
+      const time = document.createElement('span');
       time.className = 'msg-time';
-      time.style.paddingLeft = '32px';
       time.textContent = getTime();
-      wrap.appendChild(time);
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.title = 'Copiar';
+      copyBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
+      copyBtn.onclick = () => copiarTexto(copyBtn, text);
+
+      footer.appendChild(time);
+      footer.appendChild(copyBtn);
+      wrap.appendChild(footer);
 
     } else {
       const bubble = document.createElement('div');
@@ -503,10 +525,13 @@
       bubble.textContent = text;
       wrap.appendChild(bubble);
 
-      const time = document.createElement('div');
+      const footer = document.createElement('div');
+      footer.className = 'msg-footer';
+      const time = document.createElement('span');
       time.className = 'msg-time';
       time.textContent = getTime();
-      wrap.appendChild(time);
+      footer.appendChild(time);
+      wrap.appendChild(footer);
     }
 
     msgs.appendChild(wrap);
@@ -534,6 +559,7 @@
     if (el) el.remove();
   }
 
+  // ── ENVIAR MENSAJE ──────────────────────────────────────────
   async function sendMessage(text = null) {
     if (isSending) return;
     const input = document.getElementById('msgInput');
@@ -544,6 +570,7 @@
     document.getElementById('sendBtn').disabled = true;
     input.value = '';
     input.style.height = 'auto';
+    userTypingBar.textContent = '';
 
     appendMsg('user', msg);
     showTyping();
@@ -561,6 +588,7 @@
       const data = await res.json();
 
       appendMsg('bot', data.respuesta);
+      playPop();
 
     } catch (err) {
       hideTyping();
@@ -574,9 +602,7 @@
     input.focus();
   }
 
-  function sendSuggestion(text) {
-    sendMessage(text);
-  }
+  function sendSuggestion(text) { sendMessage(text); }
 </script>
 
 </body>
