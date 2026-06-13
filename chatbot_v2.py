@@ -523,7 +523,7 @@ def chat():
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
-        # ── FIX: mensajes cortos/ambiguos no usan RAG, confían en el historial ──
+        # ── mensajes cortos/ambiguos no usan RAG, confían en el historial ──
         mensaje_corto = len(mensaje.strip().split()) <= 3
         usar_rag = intenciones == ["Desconocido"] and not mensaje_corto
 
@@ -541,8 +541,9 @@ def chat():
                     f"Discúlpate brevemente y sugiere contactar al equipo de la academia "
                     f"directamente por WhatsApp: {whatsapp}."
                 )
+
         elif intenciones == ["Desconocido"] and mensaje_corto:
-            # mensaje ambiguo corto: deja que el historial resuelva el contexto
+            # Groq decide con el historial si es despedida o respuesta en contexto
             config_mini = obtener_datos_por_intencion("Saludo").get("config") or {}
             whatsapp = config_mini.get("whatsapp", "")
             academia = config_mini.get("nombre_academia", "Gōku Lab")
@@ -550,11 +551,15 @@ def chat():
                 f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
                 f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
                 f"El usuario respondió con un mensaje muy corto. "
-                f"Usa el historial de la conversación para entender el contexto y responde de forma coherente. "
-                f"Si no hay contexto suficiente, pregunta amablemente en qué puedes ayudar.\n"
-                f"Reglas: MÁXIMO 2 oraciones. No inventes información. "
-                f"Si haces una pregunta de seguimiento, SOLO usa preguntas genéricas."
+                f"Usa el historial de la conversación para entender el contexto y responde coherentemente.\n"
+                f"- Si el usuario está cerrando la conversación (ya no tiene dudas, se despide), "
+                f"despídete brevemente y termina EXACTAMENTE con: "
+                f"'¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'. Sin preguntas.\n"
+                f"- Si el usuario está respondiendo algo que tú le preguntaste, "
+                f"continúa la conversación de forma natural.\n"
+                f"Reglas: MÁXIMO 2 oraciones. No inventes información."
             )
+
         else:
             prompt_sistema = construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)
 
