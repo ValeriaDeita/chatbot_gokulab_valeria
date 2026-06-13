@@ -641,7 +641,7 @@
       msgs.scrollTop = msgs.scrollHeight;
 
 
-      const speed = text.length > 150 ? 25 : 35;
+      const speed = text.length > 150 ? 15 : 25;
       typewriter(bubble, text, speed, () => {
         time.textContent = getTime();
         msgs.scrollTop = msgs.scrollHeight;
@@ -734,7 +734,7 @@
   window.addEventListener('DOMContentLoaded', () => {
     const wb = document.getElementById('welcome-bubble');
     if (wb) {
-      typewriter(wb, '¡Hola! 👋 Soy Gōku. Puedo ayudarte con información sobre cursos, horarios, costos, ubicación y más. ¿En qué te puedo ayudar?', 25);
+      typewriter(wb, '¡Hola! Soy Gōku. Puedo ayudarte con información sobre cursos, horarios, costos, ubicación y más. ¿En qué te puedo ayudar?', 25);
     }
   });
 </script>
