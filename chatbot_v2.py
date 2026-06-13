@@ -395,7 +395,10 @@ def construir_prompt(intencion, datos, config, sentimiento):
         f"Reglas: No inventes info. MÁXIMO 2 oraciones. Sin viñetas. "
         f"Si el usuario hace más de una pregunta y tienes los datos, responde ambas. "
         f"Si el usuario se despide NO hagas preguntas. "
-        f"Termina con una pregunta SOLO si NO es despedida."
+        f"Si haces una pregunta de seguimiento, SOLO usa preguntas genéricas como "
+        f"'¿Te puedo ayudar con algo más?' o '¿Tienes alguna otra duda?'. "
+        f"NUNCA preguntes sobre un curso, horario o detalle específico que no esté "
+        f"explícitamente mencionado en los datos que tienes arriba."
     )
 
 
@@ -411,7 +414,8 @@ def construir_prompt_rag(contexto_relevante, config, sentimiento):
         f"---\n{contexto_relevante}\n---\n"
         f"Reglas: MÁXIMO 2 oraciones. No inventes datos. "
         f"Si el usuario se despide NO hagas preguntas. "
-        f"Termina con una pregunta SOLO si NO es despedida."
+        f"NO hagas preguntas de seguimiento. Si no tienes la información, "
+        f"solo di que no la tienes y ofrece el WhatsApp."
     )
 
 
@@ -434,8 +438,11 @@ def construir_prompt_multiple(intenciones, todos_datos, config, sentimiento):
         f"Datos disponibles: {todos_datos}\n"
         f"Reglas: No inventes info. MÁXIMO 2 oraciones. Sin viñetas. "
         f"Responde cada pregunta de forma natural en el mismo párrafo. "
-        f"Haz UNA SOLA pregunta al final, nunca dos. "
-        f"Termina con una pregunta SOLO si NO es despedida."
+        f"Si el usuario se despide NO hagas preguntas. "
+        f"Si haces una pregunta de seguimiento, SOLO usa preguntas genéricas como "
+        f"'¿Te puedo ayudar con algo más?' o '¿Tienes alguna otra duda?'. "
+        f"NUNCA preguntes sobre un curso, horario o detalle específico que no esté "
+        f"explícitamente mencionado en los datos que tienes arriba."
     )
 
 
@@ -516,7 +523,9 @@ def chat():
                 historial_groq.append({"role": "user",      "content": h["mensaje"]})
                 historial_groq.append({"role": "assistant", "content": h["respuesta"]})
 
-        usar_rag = intenciones == ["Desconocido"]
+        # ── FIX: mensajes cortos/ambiguos no usan RAG, confían en el historial ──
+        mensaje_corto = len(mensaje.strip().split()) <= 3
+        usar_rag = intenciones == ["Desconocido"] and not mensaje_corto
 
         if usar_rag:
             contexto_relevante = buscar_chunks_relevantes(
@@ -532,6 +541,20 @@ def chat():
                     f"Discúlpate brevemente y sugiere contactar al equipo de la academia "
                     f"directamente por WhatsApp: {whatsapp}."
                 )
+        elif intenciones == ["Desconocido"] and mensaje_corto:
+            # mensaje ambiguo corto: deja que el historial resuelva el contexto
+            config_mini = obtener_datos_por_intencion("Saludo").get("config") or {}
+            whatsapp = config_mini.get("whatsapp", "")
+            academia = config_mini.get("nombre_academia", "Gōku Lab")
+            prompt_sistema = (
+                f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
+                f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
+                f"El usuario respondió con un mensaje muy corto. "
+                f"Usa el historial de la conversación para entender el contexto y responde de forma coherente. "
+                f"Si no hay contexto suficiente, pregunta amablemente en qué puedes ayudar.\n"
+                f"Reglas: MÁXIMO 2 oraciones. No inventes información. "
+                f"Si haces una pregunta de seguimiento, SOLO usa preguntas genéricas."
+            )
         else:
             prompt_sistema = construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)
 
@@ -616,4 +639,3 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
-
