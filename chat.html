@@ -51,7 +51,7 @@
     border-right: 1px solid var(--gris-borde);
   }
 
-  /* ── HEADER ── */
+
   .header {
     padding: 14px 18px;
     background: var(--azul);
@@ -108,7 +108,7 @@
   .clear-btn:hover { background: rgba(255,255,255,0.28); }
   .clear-btn svg { width: 12px; height: 12px; fill: white; }
 
-  /* ── MENSAJES ── */
+ 
   .messages-wrap { flex: 1; position: relative; overflow: hidden; }
 
   .messages {
@@ -121,7 +121,7 @@
   .messages::-webkit-scrollbar { width: 4px; }
   .messages::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 2px; }
 
-  /* Scroll to bottom button */
+
   .scroll-btn {
     position: absolute; bottom: 12px; right: 12px;
     width: 34px; height: 34px; border-radius: 50%;
@@ -194,7 +194,7 @@
     50% { opacity: 0; }
   }
 
-  /* ── REACCIONES ── */
+
   .reaction-bar {
     display: none;
     position: absolute;
@@ -224,7 +224,6 @@
     background: var(--gris-fondo);
   }
 
-  /* Fila de reacciones debajo del bubble */
   .reactions-row {
     display: flex; flex-wrap: wrap; gap: 4px;
     margin-top: 4px; padding-left: 32px;
@@ -244,7 +243,7 @@
   }
   .reaction-pill.reacted .r-count { color: var(--azul); }
 
-  /* Fila de tiempo + botón copiar */
+  
   .msg-footer {
     display: flex; align-items: center; gap: 6px;
     margin-top: 2px; padding: 0 4px;
@@ -254,7 +253,6 @@
 
   .msg-time { font-size: 10px; color: var(--gris-texto); font-weight: 600; }
 
-  /* Botón copiar */
   .copy-btn {
     background: none; border: none; cursor: pointer; padding: 2px;
     color: var(--gris-texto); display: flex; align-items: center;
@@ -266,7 +264,7 @@
   .copy-btn svg { width: 11px; height: 11px; }
   .copy-btn.copied { color: var(--verde); opacity: 1; }
 
-  /* Typing indicator del bot */
+ 
   .typing {
     display: flex; align-items: center; gap: 4px;
     padding: 10px 12px; background: white;
@@ -286,7 +284,6 @@
     30% { transform: translateY(-6px); opacity: 1; }
   }
 
-  /* ── SUGERENCIAS ── */
   .suggestions {
     padding: 6px 12px;
     display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
@@ -373,7 +370,7 @@
     </div>
   </div>
 
-  <!-- Mensajes -->
+
   <div class="messages-wrap">
     <div class="messages" id="messages">
       <div class="date-sep">HOY</div>
@@ -394,7 +391,6 @@
     </button>
   </div>
 
-  <!-- Sugerencias rápidas -->
   <div class="suggestions" id="suggestions">
     <div class="chip" onclick="sendSuggestion('¿Cuánto cuestan los cursos?')">💰 Costos</div>
     <div class="chip" onclick="sendSuggestion('¿Qué cursos tienen disponibles?')">📚 Cursos</div>
@@ -429,10 +425,8 @@
   const USER_ID = 'tester_' + Math.random().toString(36).substr(2, 6);
   let isSending = false;
 
-  // Emojis disponibles para reaccionar
   const REACTION_EMOJIS = ['❤️', '👍', '😄', '🤔', '🙌'];
 
-  // ── TYPEWRITER ──────────────────────────────────────────────
   function typewriter(el, text, speed, onDone) {
     el.innerHTML = '';
     let i = 0;
@@ -452,7 +446,6 @@
     }, speed);
   }
 
-  // ── REACCIONES ──────────────────────────────────────────────
   // reactions = { msgId: { emoji: { count, reacted } } }
   const reactionsMap = {};
 
@@ -513,7 +506,7 @@
     });
   }
 
-  // ── AUDIO ──────────────────────────────────────────────────
+
   function playPop() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -531,7 +524,7 @@
     } catch(e) {}
   }
 
-  // ── SCROLL ──────────────────────────────────────────────────
+
   const msgsEl = document.getElementById('messages');
   const scrollBtn = document.getElementById('scrollBtn');
 
@@ -544,7 +537,6 @@
     msgsEl.scrollTo({ top: msgsEl.scrollHeight, behavior: 'smooth' });
   }
 
-  // ── LIMPIAR CHAT ────────────────────────────────────────────
   function clearChat() {
     const msgs = document.getElementById('messages');
     msgs.innerHTML = `
@@ -564,7 +556,6 @@
     showToast('Conversación reiniciada');
   }
 
-  // ── UTILIDADES ──────────────────────────────────────────────
   function showToast(msg, isError = false) {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -602,7 +593,6 @@
     }).catch(() => showToast('No se pudo copiar', true));
   }
 
-  // ── AGREGAR MENSAJE ─────────────────────────────────────────
   let msgCounter = 0;
 
   function appendMsg(role, text) {
@@ -629,7 +619,6 @@
       row.appendChild(bubble);
       wrap.appendChild(row);
 
-      // Footer con hora + botón copiar
       const footer = document.createElement('div');
       footer.className = 'msg-footer';
 
@@ -646,14 +635,13 @@
       footer.appendChild(copyBtn);
       wrap.appendChild(footer);
 
-      // Barra de reacciones
       wrap.appendChild(buildReactionBar(msgId));
 
       msgs.appendChild(wrap);
       msgs.scrollTop = msgs.scrollHeight;
 
-      // Typewriter: velocidad basada en longitud del texto
-      const speed = text.length > 150 ? 15 : 22;
+
+      const speed = text.length > 150 ? 25 : 35;
       typewriter(bubble, text, speed, () => {
         time.textContent = getTime();
         msgs.scrollTop = msgs.scrollHeight;
@@ -699,7 +687,6 @@
     if (el) el.remove();
   }
 
-  // ── ENVIAR MENSAJE ──────────────────────────────────────────
   async function sendMessage(text = null) {
     if (isSending) return;
     const input = document.getElementById('msgInput');
