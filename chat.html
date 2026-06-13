@@ -55,7 +55,7 @@
     box-shadow: var(--sombra);
     border-left: 1px solid var(--gris-borde);
     border-right: 1px solid var(--gris-borde);
-    padding-bottom: 52px;
+    padding-bottom: 0;
   }
 
   /* ── HEADER ── */
@@ -139,8 +139,8 @@
   /* ── MENSAJES ── */
   .messages {
     flex: 1; overflow-y: auto;
-    padding: 16px 14px;
-    display: flex; flex-direction: column; gap: 8px;
+    padding: 12px 12px;
+    display: flex; flex-direction: column; gap: 6px;
     scroll-behavior: smooth;
     background: var(--gris-fondo);
   }
@@ -150,13 +150,13 @@
 
   .date-sep {
     text-align: center; font-size: 11px;
-    color: var(--gris-texto); margin: 4px 0 8px;
+    color: var(--gris-texto); margin: 4px 0 6px;
     letter-spacing: 0.06em; font-weight: 600;
   }
 
   .msg {
     display: flex; flex-direction: column;
-    max-width: 80%;
+    max-width: 78%;
     animation: popIn 0.2s cubic-bezier(0.34,1.56,0.64,1) both;
   }
 
@@ -173,7 +173,7 @@
   }
 
   .bot-icon {
-    width: 28px; height: 28px; border-radius: 50%;
+    width: 26px; height: 26px; border-radius: 50%;
     background: var(--azul);
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0; overflow: hidden;
@@ -182,10 +182,15 @@
   .bot-icon img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
   .bot-icon-fallback { font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 10px; color: white; }
 
+  /* ── BURBUJA — cambios clave aquí ── */
   .bubble {
-    padding: 10px 14px; border-radius: 18px;
-    font-size: 14px; line-height: 1.55;
-    word-break: break-word; font-weight: 500;
+    padding: 8px 12px;           /* antes: 10px 14px */
+    border-radius: 16px;         /* antes: 18px */
+    font-size: 13px;             /* antes: 14px */
+    line-height: 1.45;           /* antes: 1.55 */
+    word-break: break-word;
+    font-weight: 500;
+    max-width: 100%;
   }
 
   .msg.bot .bubble {
@@ -203,7 +208,7 @@
 
   .msg-time {
     font-size: 10px; color: var(--gris-texto);
-    margin-top: 3px; padding: 0 4px; font-weight: 600;
+    margin-top: 2px; padding: 0 4px; font-weight: 600;
   }
 
   .msg.user .msg-time { text-align: right; }
@@ -211,7 +216,7 @@
   /* Tags de intención/sentimiento */
   .msg-tags {
     display: flex; gap: 4px; margin-top: 4px;
-    flex-wrap: wrap; padding-left: 34px;
+    flex-wrap: wrap; padding-left: 32px;
   }
 
   .tag {
@@ -228,15 +233,15 @@
   /* Typing indicator */
   .typing {
     display: flex; align-items: center; gap: 4px;
-    padding: 12px 14px; background: white;
+    padding: 10px 12px; background: white;
     border: 1px solid var(--gris-borde);
-    border-radius: 18px; border-bottom-left-radius: 4px;
+    border-radius: 16px; border-bottom-left-radius: 4px;
     width: fit-content;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   }
 
   .typing span {
-    width: 7px; height: 7px; border-radius: 50%;
+    width: 6px; height: 6px; border-radius: 50%;
     animation: bounce 1.2s infinite; opacity: 0.5;
   }
 
@@ -251,22 +256,23 @@
 
   /* ── SUGERENCIAS ── */
   .suggestions {
-    padding: 8px 14px; 
-    display: flex; 
+    padding: 6px 12px;
+    display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    background: white; 
+    gap: 6px;
+    justify-content: center;
+    background: white;
     border-top: 1px solid var(--gris-borde);
   }
 
   .suggestions::-webkit-scrollbar { display: none; }
 
   .chip {
-    white-space: nowrap; font-size: 12px;
+    white-space: nowrap; font-size: 11px;   /* antes: 12px */
     font-family: 'Quicksand', sans-serif; font-weight: 700;
     color: var(--azul); background: rgba(0,174,239,0.08);
     border: 1.5px solid rgba(0,174,239,0.25);
-    padding: 6px 12px; border-radius: 20px;
+    padding: 5px 10px; border-radius: 20px;  /* antes: 6px 12px */
     cursor: pointer; transition: all 0.15s; flex-shrink: 0;
   }
 
@@ -277,16 +283,16 @@
 
   /* ── INPUT ── */
   .input-area {
-    padding: 10px 14px 14px; border-top: 1px solid var(--gris-borde);
-    display: flex; gap: 10px; align-items: flex-end;
+    padding: 8px 12px 12px; border-top: 1px solid var(--gris-borde);
+    display: flex; gap: 8px; align-items: flex-end;
     background: white; flex-shrink: 0;
   }
 
   .input-box {
     flex: 1; background: var(--gris-fondo);
-    border: 1.5px solid var(--gris-borde); border-radius: 22px;
-    padding: 10px 16px; color: #2D3748;
-    font-family: 'Quicksand', sans-serif; font-size: 14px; font-weight: 500;
+    border: 1.5px solid var(--gris-borde); border-radius: 20px;
+    padding: 9px 14px; color: #2D3748;
+    font-family: 'Quicksand', sans-serif; font-size: 13px; font-weight: 500;
     resize: none; outline: none; max-height: 100px; line-height: 1.4;
     transition: border-color 0.15s, box-shadow 0.15s;
   }
@@ -299,7 +305,7 @@
   }
 
   .send-btn {
-    width: 44px; height: 44px; border-radius: 50%;
+    width: 40px; height: 40px; border-radius: 50%;  /* antes: 44px */
     background: var(--azul); border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0; transition: all 0.15s;
@@ -309,7 +315,7 @@
   .send-btn:hover  { background: var(--azul-oscuro); transform: scale(1.05); }
   .send-btn:active { transform: scale(0.93); }
   .send-btn:disabled { background: var(--gris-borde); cursor: not-allowed; box-shadow: none; }
-  .send-btn svg { width: 18px; height: 18px; fill: white; }
+  .send-btn svg { width: 16px; height: 16px; fill: white; }  /* antes: 18px */
 
   /* ── CONFIG URL ── */
   .url-bar {
@@ -384,7 +390,7 @@
           ¡Hola! 👋 Soy <strong>Gōku</strong>. Puedo ayudarte con información sobre cursos, horarios, costos, ubicación y más. ¿En qué te puedo ayudar?
         </div>
       </div>
-      <div class="msg-time" style="padding-left:34px">ahora</div>
+      <div class="msg-time" style="padding-left:32px">ahora</div>
     </div>
   </div>
 
@@ -424,24 +430,20 @@
   <input class="url-input" id="urlInput" type="text" placeholder="https://tu-ngrok-url.ngrok-free.app"/>
   <button class="url-save" onclick="saveUrl()">Guardar</button>
 </div> -->
-<!-- Toast de notificación -->
+
 <div class="toast" id="toast"></div>
 
 <script>
-  // ── LÓGICA ORIGINAL (primer código) ────────────────────────────
   let API_URL = localStorage.getItem('gokulab_api_url') || 'https://chatbot-gokulab-valeria.onrender.com';
   const USER_ID = 'tester_' + Math.random().toString(36).substr(2, 6);
   let isSending = false;
-
-  // Cargar URL guardada en el input
-  document.getElementById('urlInput').value = API_URL;
 
   function saveUrl() {
     const val = document.getElementById('urlInput').value.trim().replace(/\/$/, '');
     if (!val) return;
     API_URL = val;
     localStorage.setItem('gokulab_api_url', val);
-    showToast(' URL guardada');
+    showToast('URL guardada');
   }
 
   function showToast(msg, isError = false) {
@@ -474,7 +476,6 @@
     wrap.className = `msg ${role}`;
 
     if (role === 'bot') {
-      // Fila con ícono + burbuja (estilo diseño azul)
       const row = document.createElement('div');
       row.className = 'msg-row';
 
@@ -492,13 +493,11 @@
 
       const time = document.createElement('div');
       time.className = 'msg-time';
-      time.style.paddingLeft = '34px';
+      time.style.paddingLeft = '32px';
       time.textContent = getTime();
       wrap.appendChild(time);
 
-
     } else {
-      // Mensaje del usuario
       const bubble = document.createElement('div');
       bubble.className = 'bubble';
       bubble.textContent = text;
