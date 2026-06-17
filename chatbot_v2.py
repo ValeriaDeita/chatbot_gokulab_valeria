@@ -66,6 +66,7 @@ def limpiar_texto(texto):
     return " ".join([p for p in texto.split() if p not in stop_words])
 
 
+# ── PDF: solo para info general (directores, políticas, FAQs, etc.) ──
 def cargar_pdf():
     if not os.path.exists(PDF_PATH):
         print(f"PDF no encontrado en: {PDF_PATH}")
@@ -87,8 +88,95 @@ def cargar_pdf():
 def construir_chunks(texto, min_chars=40):
     parrafos = texto.split("\n")
     chunks = [p.strip() for p in parrafos if len(p.strip()) >= min_chars]
-    print(f"RAG: {len(chunks)} chunks generados.")
+    print(f"RAG PDF: {len(chunks)} chunks generados.")
     return chunks
+
+
+# ── Mongo: chunks de cursos con info completa por curso ──
+def construir_chunks_desde_mongo():
+    if db is None:
+        return []
+
+    try:
+        cursos   = list(db["cursos"].find({}, {"_id": 0}))
+        horarios = list(db["horarios"].find({}, {"_id": 0}))
+        config   = db["datos_generales"].find_one({}, {"_id": 0}) or {}
+
+        chunks = []
+
+        # ── un chunk completo por curso ──
+        for curso in cursos:
+            # modalidad es array
+            modalidad_raw = curso.get("modalidad", [])
+            if isinstance(modalidad_raw, list):
+                modalidad = ", ".join(modalidad_raw)
+            else:
+                modalidad = str(modalidad_raw)
+
+            # buscar horario de este curso
+            horario_doc = next(
+                (h for h in horarios if h.get("idCurso") == curso.get("idCurso")), None
+            )
+
+            if horario_doc and not curso.get("requiere_agenda", False):
+                dias = []
+                for h in horario_doc.get("horarios", []):
+                    horas = h.get("hora_inicio", [])
+                    if isinstance(horas, list):
+                        horas_str = ", ".join(horas)
+                    else:
+                        horas_str = str(horas)
+                    dias.append(f"{h.get('día', '')}: {horas_str}")
+                horario_texto = " | ".join(dias) + f" (duración: {horario_doc.get('horarios', [{}])[0].get('duración_min_clase', 90)} min)"
+            elif curso.get("requiere_agenda", False):
+                horario_texto = "coordinar directamente con la academia según disponibilidad"
+            else:
+                horario_texto = "coordinar directamente con la academia según disponibilidad"
+
+            # descripción
+            descripcion = curso.get("descripción", "")
+
+            # qué aprende (array)
+            que_aprende = curso.get("qué_aprende", [])
+            if isinstance(que_aprende, list) and que_aprende:
+                que_aprende_str = ", ".join(que_aprende)
+            else:
+                que_aprende_str = ""
+
+            texto = (
+                f"Curso: {curso.get('nombreCurso', '')}. "
+                f"{descripcion}. "
+                f"Edad dirigida: {curso.get('edad_dirigida', '')}. "
+                f"Modalidad: {modalidad}. "
+                f"Horario: {horario_texto}. "
+                f"Duración por clase: {curso.get('duración_min_clase', 90)} minutos."
+            )
+            if que_aprende_str:
+                texto += f" Temas que aprende: {que_aprende_str}."
+
+            chunks.append(texto)
+
+        # ── chunk de info general desde datos_generales ──
+        info_general = (
+            f"Gōku Lab está ubicada en: {config.get('direccion', '')}. "
+            f"Referencias: {config.get('referencias', '')}. "
+            f"Google Maps: {config.get('google_maps', '')}. "
+            f"WhatsApp de contacto: {config.get('whatsapp', '')}. "
+            f"Correo: {config.get('correo', '')}. "
+            f"Costos: {config.get('costos', '')}. "
+            f"Formas de pago: {', '.join(config.get('formas_pago', []))}. "
+            f"Abonos: {config.get('detalle_abonos', '')}. "
+            f"Masterclass: {config.get('masterclass', {}).get('descripcion', '')}. "
+            f"Certificación: {config.get('certificacion', {}).get('detalle', '')}."
+        )
+        chunks.append(info_general)
+
+        print(f"RAG Mongo: {len(chunks)} chunks generados ({len(cursos)} cursos + 1 info general).")
+        return chunks
+
+    except Exception as e:
+        print(f"Error construyendo chunks desde Mongo: {e}")
+        return []
 
 
 def construir_indice_rag(chunks):
@@ -109,14 +197,17 @@ def buscar_chunks_relevantes(query, chunks, vec_rag, matriz_rag, k=3):
     return "\n\n".join(resultados) if resultados else ""
 
 
-CONTEXTO_PDF = cargar_pdf()
-CHUNKS_PDF = construir_chunks(CONTEXTO_PDF)
-VEC_RAG, MATRIZ_RAG = construir_indice_rag(CHUNKS_PDF)
+# ── construir índice RAG combinado: PDF (info general) + Mongo (cursos) ──
+CONTEXTO_PDF  = cargar_pdf()
+CHUNKS_PDF    = construir_chunks(CONTEXTO_PDF)
+CHUNKS_MONGO  = construir_chunks_desde_mongo()
+CHUNKS_TOTAL  = CHUNKS_PDF + CHUNKS_MONGO
+VEC_RAG, MATRIZ_RAG = construir_indice_rag(CHUNKS_TOTAL)
 
 if VEC_RAG is not None:
-    print("Índice RAG TF-IDF listo.")
+    print(f"Índice RAG TF-IDF listo. Total chunks: {len(CHUNKS_TOTAL)}.")
 else:
-    print("RAG no disponible (PDF vacío o no encontrado).")
+    print("RAG no disponible.")
 
 
 MODEL_PATH = "modelo_intents.pkl"
@@ -528,8 +619,9 @@ def chat():
         usar_rag = intenciones == ["Desconocido"] and not mensaje_corto
 
         if usar_rag:
+            # busca en CHUNKS_TOTAL = PDF (info general) + Mongo (cursos completos)
             contexto_relevante = buscar_chunks_relevantes(
-                mensaje, CHUNKS_PDF, VEC_RAG, MATRIZ_RAG, k=3
+                mensaje, CHUNKS_TOTAL, VEC_RAG, MATRIZ_RAG, k=3
             )
             if contexto_relevante:
                 prompt_sistema = construir_prompt_rag(contexto_relevante, config, sentimiento)
@@ -613,15 +705,25 @@ def retrain():
 
 @app.route("/retrain-rag", methods=["POST"])
 def retrain_rag():
-    global CONTEXTO_PDF, CHUNKS_PDF, VEC_RAG, MATRIZ_RAG
+    global CONTEXTO_PDF, CHUNKS_PDF, CHUNKS_MONGO, CHUNKS_TOTAL, VEC_RAG, MATRIZ_RAG
     try:
-        CONTEXTO_PDF        = cargar_pdf()
-        CHUNKS_PDF          = construir_chunks(CONTEXTO_PDF)
-        VEC_RAG, MATRIZ_RAG = construir_indice_rag(CHUNKS_PDF)
+        # reconstruir chunks del PDF
+        CONTEXTO_PDF = cargar_pdf()
+        CHUNKS_PDF   = construir_chunks(CONTEXTO_PDF)
+
+        # reconstruir chunks desde Mongo (cursos + info general)
+        CHUNKS_MONGO = construir_chunks_desde_mongo()
+
+        # combinar y reindexar
+        CHUNKS_TOTAL        = CHUNKS_PDF + CHUNKS_MONGO
+        VEC_RAG, MATRIZ_RAG = construir_indice_rag(CHUNKS_TOTAL)
+
         return jsonify({
-            "status":  "ok",
-            "chunks":  len(CHUNKS_PDF),
-            "mensaje": "Índice RAG reconstruido exitosamente",
+            "status":        "ok",
+            "chunks_pdf":    len(CHUNKS_PDF),
+            "chunks_mongo":  len(CHUNKS_MONGO),
+            "chunks_total":  len(CHUNKS_TOTAL),
+            "mensaje":       "Índice RAG reconstruido exitosamente",
         }), 200
     except Exception as e:
         return jsonify({"status": "error", "mensaje": str(e)}), 500
@@ -635,7 +737,9 @@ def health():
         "mongo_ok":       db is not None,
         "groq_ok":        len(GROQ_KEYS) > 0,
         "rag_listo":      VEC_RAG is not None,
-        "rag_chunks":     len(CHUNKS_PDF),
+        "rag_chunks_pdf":   len(CHUNKS_PDF),
+        "rag_chunks_mongo": len(CHUNKS_MONGO),
+        "rag_chunks_total": len(CHUNKS_TOTAL),
         "timestamp":      datetime.now().isoformat(),
     }), 200
 
