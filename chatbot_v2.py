@@ -83,9 +83,32 @@ def cargar_pdf():
         return ""
 
 
-def construir_chunks(texto, min_chars=40):
-    parrafos = texto.split("\n")
-    chunks = [p.strip() for p in parrafos if len(p.strip()) >= min_chars]
+def construir_chunks(texto, min_chars=40, max_chars=300):
+    lineas = texto.split("\n")
+    chunks = []
+    buffer = ""
+    
+    for linea in lineas:
+        linea = linea.strip()
+        if not linea:
+            if buffer:
+                chunks.append(buffer.strip())
+                buffer = ""
+            continue
+        
+        if buffer:
+            buffer += " " + linea
+        else:
+            buffer = linea
+    
+        if linea.endswith(".") or linea.endswith("?") or linea.endswith("!") or len(buffer) >= max_chars:
+            if len(buffer) >= min_chars:
+                chunks.append(buffer.strip())
+            buffer = ""
+
+    if buffer and len(buffer) >= min_chars:
+        chunks.append(buffer.strip())
+    
     print(f"RAG PDF: {len(chunks)} chunks generados.")
     return chunks
 
