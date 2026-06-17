@@ -84,31 +84,31 @@ def cargar_pdf():
 
 
 def construir_chunks(texto, min_chars=40, max_chars=300):
+    texto = re.sub(r"Goku\s*Lab\s*\|\s*P[aá]gina\s*\d+", "", texto, flags=re.IGNORECASE)
+    texto = re.sub(r"Juega,\s*Aprende\s*y\s*Emprende", "", texto, flags=re.IGNORECASE)
     lineas = texto.split("\n")
     chunks = []
     buffer = ""
-    
     for linea in lineas:
         linea = linea.strip()
         if not linea:
-            if buffer:
+            if buffer and len(buffer) >= min_chars:
                 chunks.append(buffer.strip())
-                buffer = ""
+            buffer = ""
             continue
         
         if buffer:
             buffer += " " + linea
         else:
             buffer = linea
-    
+            
         if linea.endswith(".") or linea.endswith("?") or linea.endswith("!") or len(buffer) >= max_chars:
             if len(buffer) >= min_chars:
                 chunks.append(buffer.strip())
             buffer = ""
-
+    
     if buffer and len(buffer) >= min_chars:
         chunks.append(buffer.strip())
-    
     print(f"RAG PDF: {len(chunks)} chunks generados.")
     return chunks
 
