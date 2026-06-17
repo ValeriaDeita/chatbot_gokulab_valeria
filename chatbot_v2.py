@@ -743,6 +743,16 @@ def health():
         "timestamp":      datetime.now().isoformat(),
     }), 200
 
+@app.route("/chunks-mongo", methods=["GET"])
+def ver_chunks_mongo():
+    return jsonify({
+        "total_pdf":   len(CHUNKS_PDF),
+        "total_mongo": len(CHUNKS_MONGO),
+        "total":       len(CHUNKS_TOTAL),
+        "chunks_pdf":  CHUNKS_PDF,
+        "chunks_mongo": CHUNKS_MONGO
+    }), 200
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
