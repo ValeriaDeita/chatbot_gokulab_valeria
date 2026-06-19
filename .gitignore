@@ -6,5 +6,6 @@ Chatbot_WhatsApp.py
 Chatbot_Messenger.py
 test_clasificador.py
 chunks.py
+clasificador_intenciones.py
 *.pyc
 
