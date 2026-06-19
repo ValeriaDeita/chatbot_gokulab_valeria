@@ -7,6 +7,7 @@ import gdown
 import pandas as pd
 import nltk
 import numpy as np
+import requests
 from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -55,6 +56,11 @@ analizador_sentimiento = SentimentIntensityAnalyzer()
 PDF_PATH = "gokulab_info.pdf"
 
 stop_words = set(stopwords.words("spanish"))
+
+# ── Messenger ─────────────────────────────────────────────────────────────────
+VERIFY_TOKEN      = os.getenv("VERIFY_TOKEN")
+PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 def limpiar_texto(texto):
@@ -123,7 +129,6 @@ def construir_chunks_desde_mongo():
 
         chunks = []
         for curso in cursos:
-            # modalidad es array
             modalidad_raw = curso.get("modalidad", [])
             if isinstance(modalidad_raw, list):
                 modalidad = ", ".join(modalidad_raw)
@@ -582,6 +587,100 @@ def llamar_groq(messages):
     return RESPUESTA_FALLBACK
 
 
+
+def procesar_mensaje(mensaje, numero="anonimo"):
+    """
+    Recibe el texto del usuario y su identificador (puede ser el PSID de Messenger
+    o el número del widget web) y devuelve el texto de respuesta del chatbot.
+    """
+    es_valido, motivo = validar_entrada(mensaje)
+    if not es_valido:
+        return RESPUESTAS_INVALIDAS.get(motivo, "¿En qué te puedo ayudar?")
+
+    sentimiento, score_sentimiento = analizar_sentimiento(mensaje)
+    intenciones, confianzas        = predecir_intent(mensaje)
+    intencion = intenciones[0]
+    confianza = confianzas[0]
+
+    todos_datos = {}
+    for i in intenciones:
+        datos_i = obtener_datos_por_intencion(i)
+        todos_datos.update(datos_i)
+    config = todos_datos.get("config") or {}
+
+    historial_groq = []
+    if coleccion is not None:
+        historial_db = list(
+            coleccion.find({"numero": numero}, {"_id": 0, "mensaje": 1, "respuesta": 1})
+            .sort("timestamp", -1)
+            .limit(4)
+        )
+        for h in reversed(historial_db):
+            historial_groq.append({"role": "user",      "content": h["mensaje"]})
+            historial_groq.append({"role": "assistant", "content": h["respuesta"]})
+
+    mensaje_corto = len(mensaje.strip().split()) <= 3
+    usar_rag = intenciones == ["Desconocido"] and not mensaje_corto
+
+    if usar_rag:
+        contexto_relevante = buscar_chunks_relevantes(
+            mensaje, CHUNKS_TOTAL, VEC_RAG, MATRIZ_RAG, k=3
+        )
+        if contexto_relevante:
+            prompt_sistema = construir_prompt_rag(contexto_relevante, config, sentimiento)
+        else:
+            whatsapp = config.get("whatsapp", "")
+            prompt_sistema = (
+                f"Eres el asistente virtual de Gōku Lab. "
+                f"No tienes información sobre lo que pregunta el usuario. "
+                f"Discúlpate brevemente y sugiere contactar al equipo de la academia "
+                f"directamente por WhatsApp: {whatsapp}."
+            )
+
+    elif intenciones == ["Desconocido"] and mensaje_corto:
+        config_mini = obtener_datos_por_intencion("Saludo").get("config") or {}
+        whatsapp = config_mini.get("whatsapp", "")
+        academia = config_mini.get("nombre_academia", "Gōku Lab")
+        prompt_sistema = (
+            f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
+            f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
+            f"El usuario respondió con un mensaje muy corto. "
+            f"Usa el historial de la conversación para entender el contexto y responde coherentemente.\n"
+            f"- Si el usuario está cerrando la conversación (ya no tiene dudas, se despide), "
+            f"despídete brevemente y termina EXACTAMENTE con: "
+            f"'¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'. Sin preguntas.\n"
+            f"- Si el usuario está respondiendo algo que tú le preguntaste, "
+            f"continúa la conversación de forma natural.\n"
+            f"Reglas: MÁXIMO 2 oraciones. No inventes información."
+        )
+
+    else:
+        prompt_sistema = construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)
+
+    respuesta = llamar_groq([
+        {"role": "system", "content": prompt_sistema},
+        *historial_groq,
+        {"role": "user",   "content": mensaje},
+    ])
+
+    if coleccion is not None:
+        try:
+            coleccion.insert_one({
+                "numero":      numero,
+                "mensaje":     mensaje,
+                "intencion":   "+".join(intenciones),
+                "confianza":   round(confianza, 4),
+                "sentimiento": sentimiento,
+                "score_sent":  round(score_sentimiento, 4),
+                "uso_rag":     usar_rag,
+                "respuesta":   respuesta,
+                "timestamp":   datetime.now(),
+            })
+        except Exception as mongo_err:
+            print(f"No se pudo guardar en MongoDB: {mongo_err}")
+
+    return respuesta
+
 app = Flask(__name__)
 CORS(app)
 
@@ -619,82 +718,7 @@ def chat():
         intencion = intenciones[0]
         confianza = confianzas[0]
 
-        todos_datos = {}
-        for i in intenciones:
-            datos_i = obtener_datos_por_intencion(i)
-            todos_datos.update(datos_i)
-        config = todos_datos.get("config") or {}
-
-        historial_groq = []
-        if coleccion is not None:
-            historial_db = list(
-                coleccion.find({"numero": numero}, {"_id": 0, "mensaje": 1, "respuesta": 1})
-                .sort("timestamp", -1)
-                .limit(4)
-            )
-            for h in reversed(historial_db):
-                historial_groq.append({"role": "user",      "content": h["mensaje"]})
-                historial_groq.append({"role": "assistant", "content": h["respuesta"]})
-
-        mensaje_corto = len(mensaje.strip().split()) <= 3
-        usar_rag = intenciones == ["Desconocido"] and not mensaje_corto
-
-        if usar_rag:
-            contexto_relevante = buscar_chunks_relevantes(
-                mensaje, CHUNKS_TOTAL, VEC_RAG, MATRIZ_RAG, k=3
-            )
-            if contexto_relevante:
-                prompt_sistema = construir_prompt_rag(contexto_relevante, config, sentimiento)
-            else:
-                whatsapp = config.get("whatsapp", "")
-                prompt_sistema = (
-                    f"Eres el asistente virtual de Gōku Lab. "
-                    f"No tienes información sobre lo que pregunta el usuario. "
-                    f"Discúlpate brevemente y sugiere contactar al equipo de la academia "
-                    f"directamente por WhatsApp: {whatsapp}."
-                )
-
-        elif intenciones == ["Desconocido"] and mensaje_corto:
-            config_mini = obtener_datos_por_intencion("Saludo").get("config") or {}
-            whatsapp = config_mini.get("whatsapp", "")
-            academia = config_mini.get("nombre_academia", "Gōku Lab")
-            prompt_sistema = (
-                f"Eres el asistente virtual de {academia}. Responde en español mexicano, natural y conciso.\n"
-                f"Tono: {TONO_MAP.get(sentimiento, TONO_MAP['neutral'])}\n"
-                f"El usuario respondió con un mensaje muy corto. "
-                f"Usa el historial de la conversación para entender el contexto y responde coherentemente.\n"
-                f"- Si el usuario está cerrando la conversación (ya no tiene dudas, se despide), "
-                f"despídete brevemente y termina EXACTAMENTE con: "
-                f"'¡Te esperamos en Gōku Lab! 🎮\nJuega, Aprende y Emprende'. Sin preguntas.\n"
-                f"- Si el usuario está respondiendo algo que tú le preguntaste, "
-                f"continúa la conversación de forma natural.\n"
-                f"Reglas: MÁXIMO 2 oraciones. No inventes información."
-            )
-
-        else:
-            prompt_sistema = construir_prompt_multiple(intenciones, todos_datos, config, sentimiento)
-
-        respuesta = llamar_groq([
-            {"role": "system", "content": prompt_sistema},
-            *historial_groq,
-            {"role": "user",   "content": mensaje},
-        ])
-
-        if coleccion is not None:
-            try:
-                coleccion.insert_one({
-                    "numero":      numero,
-                    "mensaje":     mensaje,
-                    "intencion":   "+".join(intenciones),
-                    "confianza":   round(confianza, 4),
-                    "sentimiento": sentimiento,
-                    "score_sent":  round(score_sentimiento, 4),
-                    "uso_rag":     usar_rag,
-                    "respuesta":   respuesta,
-                    "timestamp":   datetime.now(),
-                })
-            except Exception as mongo_err:
-                print(f"No se pudo guardar en MongoDB: {mongo_err}")
+        respuesta = procesar_mensaje(mensaje, numero)
 
         return jsonify({
             "intencion":   "+".join(intenciones),
@@ -707,6 +731,63 @@ def chat():
         print(f"Error inesperado en /chat: {e}")
         return jsonify({"respuesta": RESPUESTA_FALLBACK}), 200
 
+
+@app.route("/webhook", methods=["GET"])
+def verify_webhook():
+    """Meta llama este endpoint para verificar que el webhook es tuyo."""
+    mode      = request.args.get("hub.mode")
+    token     = request.args.get("hub.verify_token")
+    challenge = request.args.get("hub.challenge")
+
+    if mode == "subscribe" and token == VERIFY_TOKEN:
+        print("Webhook verificado correctamente.")
+        return challenge, 200
+
+    print("Verificación fallida. Token incorrecto.")
+    return "Forbidden", 403
+
+
+@app.route("/webhook", methods=["POST"])
+def messenger_webhook():
+    """Recibe mensajes de Messenger y responde usando la misma lógica del chatbot."""
+    data = request.get_json(silent=True)
+
+    if not data or data.get("object") != "page":
+        return "OK", 200
+
+    for entry in data.get("entry", []):
+        for event in entry.get("messaging", []):
+            # Ignorar ecos (mensajes enviados por el bot mismo)
+            if event.get("message", {}).get("is_echo"):
+                continue
+
+            sender_id = event.get("sender", {}).get("id")
+            texto     = event.get("message", {}).get("text", "").strip()
+
+            if sender_id and texto:
+                try:
+                    respuesta = procesar_mensaje(texto, numero=sender_id)
+                    enviar_mensaje_messenger(sender_id, respuesta)
+                except Exception as e:
+                    print(f"Error procesando mensaje de Messenger: {e}")
+                    enviar_mensaje_messenger(sender_id, RESPUESTA_FALLBACK)
+
+    return "EVENT_RECEIVED", 200
+
+
+def enviar_mensaje_messenger(recipient_id, texto):
+    """Envía un mensaje de texto al usuario en Messenger."""
+    url = f"https://graph.facebook.com/v19.0/me/messages?access_token={PAGE_ACCESS_TOKEN}"
+    payload = {
+        "recipient": {"id": recipient_id},
+        "message":   {"text": texto},
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=10)
+        if r.status_code != 200:
+            print(f"Error enviando a Messenger: {r.status_code} {r.text}")
+    except Exception as e:
+        print(f"Excepción enviando a Messenger: {e}")
 
 @app.route("/retrain", methods=["POST"])
 def retrain():
@@ -726,14 +807,9 @@ def retrain():
 def retrain_rag():
     global CONTEXTO_PDF, CHUNKS_PDF, CHUNKS_MONGO, CHUNKS_TOTAL, VEC_RAG, MATRIZ_RAG
     try:
-        # reconstruir chunks del PDF
         CONTEXTO_PDF = cargar_pdf()
         CHUNKS_PDF   = construir_chunks(CONTEXTO_PDF)
-
-        # reconstruir chunks desde Mongo (cursos + info general)
         CHUNKS_MONGO = construir_chunks_desde_mongo()
-
-        # combinar y reindexar
         CHUNKS_TOTAL        = CHUNKS_PDF + CHUNKS_MONGO
         VEC_RAG, MATRIZ_RAG = construir_indice_rag(CHUNKS_TOTAL)
 
@@ -751,25 +827,26 @@ def retrain_rag():
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status":         "ok",
-        "modelo_cargado": mejor_modelo is not None,
-        "mongo_ok":       db is not None,
-        "groq_ok":        len(GROQ_KEYS) > 0,
-        "rag_listo":      VEC_RAG is not None,
+        "status":           "ok",
+        "modelo_cargado":   mejor_modelo is not None,
+        "mongo_ok":         db is not None,
+        "groq_ok":          len(GROQ_KEYS) > 0,
+        "rag_listo":        VEC_RAG is not None,
         "rag_chunks_pdf":   len(CHUNKS_PDF),
         "rag_chunks_mongo": len(CHUNKS_MONGO),
         "rag_chunks_total": len(CHUNKS_TOTAL),
-        "timestamp":      datetime.now().isoformat(),
+        "timestamp":        datetime.now().isoformat(),
     }), 200
+
 
 @app.route("/chunks-mongo", methods=["GET"])
 def ver_chunks_mongo():
     return jsonify({
-        "total_pdf":   len(CHUNKS_PDF),
-        "total_mongo": len(CHUNKS_MONGO),
-        "total":       len(CHUNKS_TOTAL),
-        "chunks_pdf":  CHUNKS_PDF,
-        "chunks_mongo": CHUNKS_MONGO
+        "total_pdf":    len(CHUNKS_PDF),
+        "total_mongo":  len(CHUNKS_MONGO),
+        "total":        len(CHUNKS_TOTAL),
+        "chunks_pdf":   CHUNKS_PDF,
+        "chunks_mongo": CHUNKS_MONGO,
     }), 200
 
 
@@ -777,3 +854,6 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"Arrancando Flask en puerto {port}...")
     app.run(host="0.0.0.0", port=port)
+
+
+
