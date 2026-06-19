@@ -4,5 +4,7 @@ __pycache__/
 chat_sin_cambios.html
 Chatbot_WhatsApp.py
 Chatbot_Messenger.py
+chunks.py
+test_clasificador.py
 *.pyc
 
