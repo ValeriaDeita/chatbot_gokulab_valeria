@@ -225,8 +225,8 @@ MODEL_PATH = "modelo_intents.pkl"
 
 
 def entrenar_y_guardar():
-    file_id   = "1mzmYKXunfzqSBT-Z6lZ1MSAYogljt0fm"
-    file_name = "nuevo_dataset.xlsx"
+    file_id   = "1WpboA8kOHMi1oA-yOYahTrcCDST8NJcL"
+    file_name = "dataset_final.xlsx"
     url = f"https://docs.google.com/spreadsheets/d/{file_id}/export?format=xlsx"
 
     if not os.path.exists(file_name):
@@ -586,7 +586,7 @@ def registrar_usuario(numero, canal, intenciones):
                 "intenciones_historial": intenciones_a_guardar,
             })
         else:
-            # Usuario existente: actualizar
+            
             update = {
                 "$set":  {"ultima_vez": ahora},
                 "$inc":  {"total_mensajes": 1},
@@ -804,8 +804,8 @@ def enviar_mensaje_messenger(recipient_id, texto):
 def retrain():
     global mejor_modelo, vectorizer
     try:
-        if os.path.exists("nuevo_dataset.xlsx"):
-            os.remove("nuevo_dataset.xlsx")
+        if os.path.exists("dataset_final.xlsx"):
+            os.remove("dataset_final.xlsx")
         if os.path.exists(MODEL_PATH):
             os.remove(MODEL_PATH)
         mejor_modelo, vectorizer = entrenar_y_guardar()
