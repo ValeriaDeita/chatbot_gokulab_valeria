@@ -5,5 +5,6 @@ chat_sin_cambios.html
 Chatbot_WhatsApp.py
 Chatbot_Messenger.py
 test_clasificador.py
+chunks.py
 *.pyc
 
