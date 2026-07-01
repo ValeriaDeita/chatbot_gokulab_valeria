@@ -1,0 +1,15 @@
+name: Keep Render Awake
+
+on:
+  schedule:
+    - cron: '*/14 11-23 * * *'
+    - cron: '*/14 0-4 * * *'
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping chatbot
+        run: |
+          curl -s https://chatbot-gokulab-valeria.onrender.com/health
+          echo "Ping enviado"
