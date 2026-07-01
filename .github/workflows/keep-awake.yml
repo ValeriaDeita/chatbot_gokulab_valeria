@@ -1,6 +1,7 @@
 name: Keep Render Awake
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '*/14 11-23 * * *'
     - cron: '*/14 0-4 * * *'
